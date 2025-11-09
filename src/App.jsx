@@ -1,20 +1,40 @@
+import { useState, useEffect } from 'react';
 import LoginPage from './pages/LoginPage';
-import DashboardPage from './pages/DashboardPage';
-import { useAuth } from './hooks/useAuth';
+import Dashboard from './pages/DashboardPage';
+import LoadingSpinner from './components/LoadingSpinner';
+import { initializeGoogleSignIn, parseJwt } from './utils/googleAuth';
 
-export default function App() {
-    const { user, loading } = useAuth();
+function App() {
+    const [user, setUser] = useState(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const handleCredentialResponse = (response) => {
+            const userObject = parseJwt(response.credential);
+            setUser({
+                name: userObject.name,
+                email: userObject.email,
+                picture: userObject.picture,
+            });
+        };
+
+        initializeGoogleSignIn(handleCredentialResponse, () => setLoading(false));
+    }, []);
+
+    const handleSignOut = () => {
+        window.google.accounts.id.disableAutoSelect();
+        setUser(null);
+    };
 
     if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-                    <p className="text-gray-600">Loading...</p>
-                </div>
-            </div>
-        );
+        return <LoadingSpinner />;
     }
 
-    return user ? <DashboardPage user={user} /> : <LoginPage />;
+    if (!user) {
+        return <LoginPage />;
+    }
+
+    return <Dashboard user={user} onSignOut={handleSignOut} />;
 }
+
+export default App;

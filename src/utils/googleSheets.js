@@ -1,5 +1,5 @@
 const SPREADSHEET_ID = '1CY6O9AULg9PiHQ9gy7nzOth4446plJyVEBunKZ8a7X8';
-const API_KEY = 'AIzaSyAYCPj5v3IfCW2zowYhM0G5bpCp-DbUOjM'; // Get from Google Cloud Console
+const API_KEY = 'AIzaSyAYCPj5v3IfCW2zowYhM0G5bpCp-DbUOjM';
 
 // Tab names
 const PURCHASES_TAB = 'Item List';
@@ -22,6 +22,79 @@ const fetchSheetData = async (sheetName) => {
         return data.values || [];
     } catch (error) {
         console.error(`Error fetching ${sheetName}:`, error);
+        throw error;
+    }
+};
+
+/**
+ * Deletes a purchase row by Request ID from the Purchases tab
+ * @param {string} requestId - The Request ID to delete
+ * @param {string} accessToken - OAuth2 access token from Google Sign-In
+ * @returns {Promise<Object>} Response from the API
+ */
+export const deletePurchaseByRequestId = async (requestId, accessToken) => {
+    try {
+        // Fetch all purchases to find the row index
+        const purchases = await fetchSheetData(PURCHASES_TAB);
+        const headers = purchases[0] || [];
+        const dataRows = purchases.slice(1);
+
+        const rowIndex = dataRows.findIndex(row => row[headers.indexOf('Request ID')] === requestId);
+
+        if (rowIndex === -1) {
+            throw new Error(`Request ID ${requestId} not found`);
+        }
+
+        // Row index in the sheet (0-based) including header row
+        const actualRowIndex = rowIndex + 1; // +1 for header row
+
+        // Get sheet ID
+        const sheetInfoUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}?fields=sheets.properties&key=${API_KEY}`;
+        const sheetInfoResp = await fetch(sheetInfoUrl);
+        if (!sheetInfoResp.ok) {
+            throw new Error(`Failed to fetch spreadsheet info: ${sheetInfoResp.status}`);
+        }
+        const sheetInfo = await sheetInfoResp.json();
+        const sheet = sheetInfo.sheets.find(s => s.properties.title === PURCHASES_TAB);
+        if (!sheet) {
+            throw new Error(`Sheet "${PURCHASES_TAB}" not found`);
+        }
+        const sheetId = sheet.properties.sheetId;
+
+        // Build batchUpdate request
+        const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}:batchUpdate`;
+        const body = {
+            requests: [
+                {
+                    deleteDimension: {
+                        range: {
+                            sheetId,
+                            dimension: 'ROWS',
+                            startIndex: actualRowIndex,
+                            endIndex: actualRowIndex + 1
+                        }
+                    }
+                }
+            ]
+        };
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(body)
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to delete row: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error(`Error deleting purchase with Request ID ${requestId}:`, error);
         throw error;
     }
 };
@@ -180,3 +253,45 @@ export const updatePurchaseByRequestId = async (requestId, updates, accessToken)
 
     return Promise.all(updatePromises.filter(p => p !== null));
 };
+
+/**
+ * Creates a new purchase request in the Purchases tab
+ * @param {Object} purchaseData - Object containing all purchase fields
+ * @param {string} accessToken - OAuth2 access token from Google Sign-In
+ * @returns {Promise<Object>} Response from the API
+ */
+export const createPurchase = async (purchaseData, accessToken) => {
+    try {
+        // Fetch existing purchases to get the header row
+        const rows = await fetchSheetData(PURCHASES_TAB);
+        const headerRow = rows[0];
+        if (!headerRow) throw new Error('Header row not found in Purchases sheet');
+
+        // Generate a unique Request ID using Unix timestamp
+        const requestId = Math.floor(Date.now() / 1000);
+
+        // Map header to values; ensure all values are strings and non-null
+        const newRow = headerRow.map(header => {
+            if (header === 'Request ID') return String(requestId);
+            const value = purchaseData[header];
+            return value != null ? String(value) : '';
+        });
+
+        // Determine next empty row number
+        const nextRowNumber = rows.length + 1; // +1 because sheet rows are 1-based
+
+        // Build A1 notation for first column only; Sheets will fill remaining columns
+        const range = `A${nextRowNumber}`;
+
+        // Wrap the row in a 2D array for API
+        const valueArray = [newRow];
+
+        // Call updatePurchases helper
+        return await updatePurchases(range, valueArray, accessToken);
+
+    } catch (error) {
+        console.error('Error creating new purchase:', error);
+        throw error;
+    }
+};
+

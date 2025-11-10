@@ -2,23 +2,27 @@ import { useState, useEffect } from 'react';
 import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/DashboardPage';
 import LoadingSpinner from './components/LoadingSpinner';
-import { initializeGoogleSignIn, parseJwt } from './utils/googleAuth';
+import { initializeGoogleSignIn, parseJwt, requestSheetsAccess, clearTokens } from './utils/googleAuth';
 
 function App() {
     const [user, setUser] = useState(null);
-    const [accessToken, setAccessToken] = useState(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const handleCredentialResponse = (response) => {
+        const handleCredentialResponse = async (response) => {
             const userObject = parseJwt(response.credential);
             setUser({
                 name: userObject.name,
                 email: userObject.email,
                 picture: userObject.picture,
             });
-            // Store the access token (JWT credential)
-            setAccessToken(response.credential);
+
+            // Request Sheets API access after sign-in
+            try {
+                await requestSheetsAccess();
+            } catch (err) {
+                console.error('Failed to get Sheets access:', err);
+            }
         };
 
         initializeGoogleSignIn(handleCredentialResponse, () => setLoading(false));
@@ -26,8 +30,8 @@ function App() {
 
     const handleSignOut = () => {
         window.google.accounts.id.disableAutoSelect();
+        clearTokens();
         setUser(null);
-        setAccessToken(null);
     };
 
     if (loading) {
@@ -38,7 +42,7 @@ function App() {
         return <LoginPage />;
     }
 
-    return <Dashboard user={user} accessToken={accessToken} onSignOut={handleSignOut} />;
+    return <Dashboard user={user} onSignOut={handleSignOut} />;
 }
 
 export default App;

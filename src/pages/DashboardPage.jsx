@@ -1,6 +1,13 @@
 import { useState, useEffect } from 'react';
-import { LogOut, User, Mail, Search, Package, Calendar, DollarSign, Filter, X, CheckCircle, AlertCircle, XCircle, RefreshCw } from 'lucide-react';
-import { fetchPurchases, fetchValidation, updatePurchaseByRequestId } from '../utils/googleSheets';
+import { LogOut, User, Mail, Search, Package, Calendar, DollarSign, Filter, X, CheckCircle, AlertCircle, XCircle, RefreshCw, Pencil, Trash2, Loader, Plus } from 'lucide-react';
+import {
+    deletePurchaseByRequestId,
+    fetchPurchases,
+    fetchValidation,
+    updatePurchaseByRequestId
+} from '../utils/googleSheets';
+import { getAccessToken, requestSheetsAccess } from '../utils/googleAuth';
+import RequestForm from "./RequestForm.jsx";
 
 // Easy to modify category list
 const CATEGORIES = [
@@ -20,10 +27,20 @@ const STATES = [
     'Approved',
     'Received',
     'Purchased',
-    'On Hold'
+    'On Hold',
+    'Completed'
 ];
 
-export default function Dashboard({ user, accessToken, onSignOut }) {
+const STATE_COLORS = {
+    'Pending Approval': 'bg-yellow-100 text-yellow-800',
+    'Approved': 'bg-blue-100 text-blue-800',
+    'Received': 'bg-green-100 text-green-800',
+    'Purchased': 'bg-purple-100 text-purple-800',
+    'On Hold': 'bg-gray-100 text-gray-800',
+    'Completed': 'bg-green-100 text-green-800'
+};
+
+export default function Dashboard({ user, onSignOut }) {
     const [purchases, setPurchases] = useState([]);
     const [filteredPurchases, setFilteredPurchases] = useState([]);
     const [validation, setValidation] = useState({});
@@ -34,7 +51,11 @@ export default function Dashboard({ user, accessToken, onSignOut }) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [approvalLoading, setApprovalLoading] = useState(false);
+    const [savingLoading, setSavingLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
+    const [editedPurchase, setEditedPurchase] = useState({});
+    const [showCreateForm, setShowCreateForm] = useState(false);
 
     useEffect(() => {
         loadPurchases();
@@ -95,6 +116,16 @@ export default function Dashboard({ user, accessToken, onSignOut }) {
         }
     };
 
+    const StateBadge = ({ state }) => {
+        if (!state) return null;
+
+        const colorClass = STATE_COLORS[state] || 'bg-gray-100 text-gray-800';
+
+        return (
+            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${colorClass}`}>{state}</span>
+        );
+    };
+
     const handleRefresh = async () => {
         try {
             setRefreshing(true);
@@ -136,6 +167,13 @@ export default function Dashboard({ user, accessToken, onSignOut }) {
         if (!amount) return '$0.00';
         const num = parseFloat(amount);
         return isNaN(num) ? amount : `${num.toFixed(2)}`;
+    };
+
+    const parseCurrency = (formatted) => {
+        if (!formatted) return 0;
+        // Remove any non-numeric characters except for the decimal point
+        const num = parseFloat(formatted.replace(/[^0-9.-]+/g, ''));
+        return isNaN(num) ? 0 : num;
     };
 
     const toggleCategory = (category) => {
@@ -196,12 +234,25 @@ export default function Dashboard({ user, accessToken, onSignOut }) {
         return permissions;
     };
 
+    const inDisallowedState = (purchase) => {
+        const disallowedStates = ['Purchased', 'Received', 'Completed'];
+        return disallowedStates.includes(purchase['State']);
+    }
+
     const canApproveRequest = (purchase, approvalType) => {
         const totalCost = parseFloat(purchase['Total Cost']) || 0;
+
+        if(inDisallowedState(purchase)) {
+            return {canApprove: false, reason: 'Already approved'}
+        }
 
         // Nobody can approve requests over $2000
         if (totalCost > 2000) {
             return { canApprove: false, reason: 'Requests over $2,000 cannot be approved' };
+        }
+
+        if(user.name === purchase['Requestor']){
+            return { canApprove: false, reason: 'Requestor' };
         }
 
         const permissions = getUserApprovalPermissions();
@@ -229,14 +280,48 @@ export default function Dashboard({ user, accessToken, onSignOut }) {
         return { canApprove: false, reason: 'Unknown approval type' };
     };
 
-    const handleApprove = async (purchase, approvalType) => {
-        if (!accessToken) {
-            alert('Authentication token not found. Please sign in again.');
-            return;
-        }
+    const canDeletePurchase = (purchase) => {
+        const { canStudentApprove, canMentorApprove } = getUserApprovalPermissions();
+        const disallowedStates = ['Purchased', 'Received', 'Completed'];
+
+        // Must have approval permissions and not be in disallowed states
+        return (canStudentApprove || canMentorApprove) && !disallowedStates.includes(purchase['State']);
+    };
+
+    const handleDeletePurchase = async (purchase) => {
+        if (!window.confirm(`Are you sure you want to delete request "${purchase['Item Description']}"?`)) return;
 
         try {
+            setSavingLoading(true); // reuse loading state
+            let token = getAccessToken();
+            if (!token) token = await requestSheetsAccess();
+
+            // Call your delete function
+            await deletePurchaseByRequestId(purchase['Request ID'], token);
+
+            // Reload the list
+            await loadPurchases();
+            if (selectedPurchase?.['Request ID'] === purchase['Request ID']) {
+                setSelectedPurchase(null);
+            }
+
+        } catch (err) {
+            console.error('Error deleting purchase:', err);
+            alert(`Failed to delete purchase: ${err.message}`);
+        } finally {
+            setSavingLoading(false);
+        }
+    };
+
+    const handleApprove = async (purchase, approvalType) => {
+        try {
             setApprovalLoading(true);
+
+            // Get or request access token
+            let token = getAccessToken();
+            if (!token) {
+                token = await requestSheetsAccess();
+            }
 
             const updates = {};
 
@@ -246,8 +331,8 @@ export default function Dashboard({ user, accessToken, onSignOut }) {
                 updates['M Approver'] = user.name;
             }
 
-            // Call the update function
-            await updatePurchaseByRequestId(purchase['Request ID'], updates, accessToken);
+            // Call the update function with the token
+            await updatePurchaseByRequestId(purchase['Request ID'], updates, token);
 
             // Reload purchases to reflect the change
             await loadPurchases();
@@ -256,12 +341,73 @@ export default function Dashboard({ user, accessToken, onSignOut }) {
             const updatedPurchase = { ...selectedPurchase, ...updates };
             setSelectedPurchase(updatedPurchase);
 
-            alert(`Successfully approved as ${approvalType}!`);
         } catch (err) {
             console.error('Error approving purchase:', err);
             alert(`Failed to approve purchase: ${err.message}`);
         } finally {
             setApprovalLoading(false);
+        }
+    };
+
+    const handleWithdrawApproval = async (purchase, approvalType) => {
+        try {
+            setApprovalLoading(true);
+
+            let token = getAccessToken();
+            if (!token) {
+                token = await requestSheetsAccess();
+            }
+
+            const updates = {};
+            if (approvalType === 'student') {
+                updates['S Approver'] = ''; // clear approval
+            } else if (approvalType === 'mentor') {
+                updates['M Approver'] = '';
+            }
+
+            await updatePurchaseByRequestId(purchase['Request ID'], updates, token);
+            await loadPurchases();
+
+            const updatedPurchase = { ...selectedPurchase, ...updates };
+            setSelectedPurchase(updatedPurchase);
+        } catch (err) {
+            console.error('Error withdrawing approval:', err);
+            alert(`Failed to withdraw approval: ${err.message}`);
+        } finally {
+            setApprovalLoading(false);
+        }
+    };
+
+    const canEditPurchase = (purchase) => {
+        const userName = user.name;
+        const permissions = getUserApprovalPermissions();
+
+        // Can edit if requester
+        if (purchase['Requester'] === userName) return true;
+
+        // Can edit if user can approve this purchase
+        const student = canApproveRequest(purchase, 'student').canApprove;
+        const mentor = canApproveRequest(purchase, 'mentor').canApprove;
+        return student || mentor;
+    };
+
+    const handleSaveEdit = async () => {
+        try {
+            setSavingLoading(true);
+            let token = getAccessToken();
+            if (!token) token = await requestSheetsAccess();
+
+            await updatePurchaseByRequestId(selectedPurchase['Request ID'], editedPurchase, token);
+            await loadPurchases();
+
+            const updated = { ...selectedPurchase, ...editedPurchase };
+            setSelectedPurchase(updated);
+            setIsEditing(false);
+        } catch (err) {
+            console.error('Error saving edits:', err);
+            alert(`Failed to save changes: ${err.message}`);
+        } finally {
+            setSavingLoading(false);
         }
     };
 
@@ -286,6 +432,21 @@ export default function Dashboard({ user, accessToken, onSignOut }) {
                                     <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
                                     {refreshing ? 'Refreshing...' : 'Refresh'}
                                 </button>
+                                <button
+                                    className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-lg font-semibold"
+                                    onClick={() => setShowCreateForm(true)}
+                                >
+                                    <Plus size={16} /> Create Request
+                                </button>
+
+                                {showCreateForm && (
+                                    <RequestForm
+                                        user={user}
+                                        onClose={() => setShowCreateForm(false)}
+                                        onCreated={loadPurchases} // refresh list after creation
+                                        presetFields={{ 'State': 'Pending Approval' }} // optional presets
+                                    />
+                                )}
                             </div>
                             <div className="flex items-center gap-4">
                                 <img
@@ -425,16 +586,7 @@ export default function Dashboard({ user, accessToken, onSignOut }) {
                                                 <h3 className="text-lg font-semibold text-gray-800">
                                                     {purchase['Item Description'] || 'No description'}
                                                 </h3>
-                                                {purchase['State'] && (
-                                                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                                                        purchase['State'] === 'Approved' ? 'bg-green-100 text-green-800' :
-                                                            purchase['State'] === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
-                                                                purchase['State'] === 'Rejected' ? 'bg-red-100 text-red-800' :
-                                                                    'bg-gray-100 text-gray-800'
-                                                    }`}>
-                                                        {purchase['State']}
-                                                    </span>
-                                                )}
+                                                {purchase['State'] && <StateBadge state={purchase['State']} />}
                                             </div>
 
                                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3">
@@ -514,37 +666,84 @@ export default function Dashboard({ user, accessToken, onSignOut }) {
                     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={() => setSelectedPurchase(null)}>
                         <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
                             {/* Header */}
-                            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white sticky top-0">
-                                <div className="flex justify-between items-start">
+                            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white sticky top-0 flex justify-between items-center">
+                                {/* Left side: title + badge */}
+                                <div className="flex items-center gap-4">
                                     <div>
                                         <h2 className="text-2xl font-bold mb-1">{selectedPurchase['Item Description']}</h2>
                                         <p className="text-blue-100">Request ID: {selectedPurchase['Request ID']}</p>
                                     </div>
+
+                                    {/* Status Badge */}
+                                    {selectedPurchase['State'] && <StateBadge state={selectedPurchase['State']} />}
+                                </div>
+
+                                {/* Right side: buttons */}
+                                <div className="flex items-center gap-2">
+                                    {canDeletePurchase(selectedPurchase) && (
+                                        <button
+                                            onClick={() => handleDeletePurchase(selectedPurchase)}
+                                            className="p-2 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center transition disabled:opacity-50"
+                                            disabled={savingLoading}
+                                            title="Delete purchase"
+                                        >
+                                            {savingLoading ? <Loader className="animate-spin w-5 h-5" /> : <Trash2 className="w-5 h-5" />}
+                                        </button>
+                                    )}
+
+                                    {canEditPurchase(selectedPurchase) && (
+                                        <>
+                                            {!isEditing ? (
+                                                <button
+                                                    onClick={() => {
+                                                        setIsEditing(true);
+                                                        setEditedPurchase({ ...selectedPurchase });
+                                                    }}
+                                                    disabled={selectedPurchase['S Approver'] && selectedPurchase['M Approver']}
+                                                    className={`p-2 rounded-full transition duration-200 ${
+                                                        selectedPurchase['S Approver'] && selectedPurchase['M Approver']
+                                                            ? 'bg-white/10 text-white/50 cursor-not-allowed'
+                                                            : 'bg-yellow-500 hover:bg-yellow-600 text-white'
+                                                    }`}
+                                                    title={
+                                                        selectedPurchase['S Approver'] && selectedPurchase['M Approver']
+                                                            ? 'Cannot edit after approval'
+                                                            : 'Edit item'
+                                                    }
+                                                >
+                                                    <Pencil className="w-5 h-5" />
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    onClick={() => {
+                                                        setIsEditing(false);
+                                                        setEditedPurchase({});
+                                                    }}
+                                                    className="p-2 rounded-full bg-red-500 hover:bg-red-600 text-white transition duration-200"
+                                                    title="Cancel edit mode"
+                                                >
+                                                    <XCircle className="w-5 h-5" />
+                                                </button>
+                                            )}
+                                        </>
+                                    )}
+
                                     <button
-                                        onClick={() => setSelectedPurchase(null)}
+                                        onClick={() => {
+                                            setSelectedPurchase(null);
+                                            setIsEditing(false);
+                                        }}
                                         className="text-white hover:bg-white/20 rounded-lg p-2 transition"
+                                        title="Close"
                                     >
                                         <X className="w-6 h-6" />
                                     </button>
                                 </div>
                             </div>
 
+
                             {/* Content */}
                             <div className="p-6 space-y-6">
-                                {/* Status Badge */}
-                                {selectedPurchase['State'] && (
-                                    <div className="flex justify-center">
-                                        <span className={`px-4 py-2 rounded-full text-sm font-semibold ${
-                                            selectedPurchase['State'] === 'Approved' ? 'bg-green-100 text-green-800' :
-                                                selectedPurchase['State'] === 'Pending approval' ? 'bg-yellow-100 text-yellow-800' :
-                                                    selectedPurchase['State'] === 'Rejected' ? 'bg-red-100 text-red-800' :
-                                                        'bg-gray-100 text-gray-800'
-                                        }`}>
-                                            {selectedPurchase['State']}
-                                        </span>
-                                    </div>
-                                )}
-
                                 {/* Basic Info Grid */}
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="bg-gray-50 p-4 rounded-lg">
@@ -557,11 +756,39 @@ export default function Dashboard({ user, accessToken, onSignOut }) {
                                     </div>
                                     <div className="bg-gray-50 p-4 rounded-lg">
                                         <p className="text-sm text-gray-500 mb-1">Category</p>
-                                        <p className="font-semibold text-gray-800">{selectedPurchase['Category'] || 'N/A'}</p>
+                                        {isEditing ? (
+                                                <select
+                                                    id="category"
+                                                    value={editedPurchase['Category'] || ''}
+                                                    onChange={(e) =>
+                                                        setEditedPurchase((prev) => ({ ...prev, 'Category': e.target.value }))
+                                                    }
+                                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
+                                                >
+                                                    {CATEGORIES.map((category) => (
+                                                        <option key={category} value={category}>
+                                                            {category}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                        ) : (
+                                            <p className="font-semibold text-gray-800">{selectedPurchase['Category']}</p>
+                                        )}
                                     </div>
                                     <div className="bg-gray-50 p-4 rounded-lg">
                                         <p className="text-sm text-gray-500 mb-1">Quantity</p>
-                                        <p className="font-semibold text-gray-800">{selectedPurchase['Quantity'] || 'N/A'}</p>
+                                        {isEditing ? (
+                                            <input
+                                                type="text"
+                                                value={editedPurchase['Quantity']}
+                                                onChange={(e) =>
+                                                    setEditedPurchase((prev) => ({ ...prev, 'Quantity': e.target.value }))
+                                                }
+                                                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
+                                            />
+                                        ) : (
+                                            <p className="font-semibold text-gray-800">{selectedPurchase['Quantity']}</p>
+                                        )}
                                     </div>
                                 </div>
 
@@ -570,31 +797,64 @@ export default function Dashboard({ user, accessToken, onSignOut }) {
                                     <div className="grid grid-cols-3 gap-4">
                                         <div>
                                             <p className="text-sm text-blue-700 mb-1">Unit Price</p>
-                                            <p className="font-bold text-blue-900">{formatCurrency(selectedPurchase['Unit Price'])}</p>
+                                            {isEditing ? (
+                                                <input
+                                                    type="number"
+                                                    value={parseCurrency(editedPurchase['Unit Price']) || '-1'}
+                                                    onChange={(e) =>
+                                                        setEditedPurchase((prev) => ({ ...prev, 'Unit Price': e.target.value }))
+                                                    }
+                                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
+                                                />
+                                            ) : (
+                                                <p className="font-semibold text-gray-800">{formatCurrency(selectedPurchase['Unit Price'])}</p>
+                                            )}
                                         </div>
                                         <div>
                                             <p className="text-sm text-blue-700 mb-1">Shipping</p>
-                                            <p className="font-bold text-blue-900">{formatCurrency(selectedPurchase['Shipping'])}</p>
+                                            {isEditing ? (
+                                                <input
+                                                    type="number"
+                                                    value={parseCurrency(editedPurchase['Shipping']) || '0.00'}
+                                                    onChange={(e) =>
+                                                        setEditedPurchase((prev) => ({ ...prev, 'Shipping': e.target.value }))
+                                                    }
+                                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
+                                                />
+                                            ) : (
+                                                <p className="font-semibold text-gray-800">{formatCurrency(selectedPurchase['Shipping'])}</p>
+                                            )}
                                         </div>
                                         <div>
                                             <p className="text-sm text-blue-700 mb-1">Total Cost</p>
-                                            <p className="font-bold text-blue-900 text-xl">{formatCurrency(selectedPurchase['Total Cost'])}</p>
+                                            <p className="font-semibold text-gray-800">{formatCurrency(selectedPurchase['Total Cost'])}</p>
                                         </div>
                                     </div>
                                 </div>
 
                                 {/* Item Link */}
-                                {selectedPurchase['Item Link'] && (
+                                {selectedPurchase?.['Item Link'] && selectedPurchase['Item Link'].trim() !== '' && (
                                     <div>
                                         <p className="text-sm text-gray-500 mb-2">Item Link</p>
-                                        <a
-                                            href={selectedPurchase['Item Link']}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-blue-600 hover:text-blue-700 hover:underline break-all"
-                                        >
-                                            {selectedPurchase['Item Link']}
-                                        </a>
+                                        {isEditing ? (
+                                            <input
+                                                type="text"
+                                                value={editedPurchase['Item Link'] || ''}
+                                                onChange={(e) =>
+                                                    setEditedPurchase((prev) => ({ ...prev, 'Item Link': e.target.value }))
+                                                }
+                                                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
+                                            />
+                                        ) : (
+                                            <a
+                                                href={selectedPurchase['Item Link']}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-blue-600 hover:text-blue-700 hover:underline break-all"
+                                            >
+                                                {selectedPurchase['Item Link']}
+                                            </a>
+                                        )}
                                     </div>
                                 )}
 
@@ -603,7 +863,18 @@ export default function Dashboard({ user, accessToken, onSignOut }) {
                                     <div>
                                         <p className="text-sm text-gray-500 mb-2">Comments</p>
                                         <div className="bg-gray-50 p-4 rounded-lg">
-                                            <p className="text-gray-800 italic">"{selectedPurchase['Comments']}"</p>
+                                            {isEditing ? (
+                                                <input
+                                                    type="text"
+                                                    value={editedPurchase['Comments'] || ''}
+                                                    onChange={(e) =>
+                                                        setEditedPurchase((prev) => ({ ...prev, 'Comments': e.target.value }))
+                                                    }
+                                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
+                                                />
+                                            ) : (
+                                                <p className="font-semibold text-gray-800">{selectedPurchase['Comments']}</p>
+                                            )}
                                         </div>
                                     </div>
                                 )}
@@ -658,9 +929,20 @@ export default function Dashboard({ user, accessToken, onSignOut }) {
                                             <div>
                                                 <p className="text-sm text-gray-500 mb-1">Student Approver</p>
                                                 {selectedPurchase['S Approver'] ? (
-                                                    <div className="flex items-center">
-                                                        <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
-                                                        <p className="font-semibold text-gray-800">{selectedPurchase['S Approver']}</p>
+                                                    <div className="flex items-center justify-between w-full">
+                                                        <div className="flex items-center">
+                                                            <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
+                                                            <p className="font-semibold text-gray-800">{selectedPurchase['S Approver']}</p>
+                                                        </div>
+                                                        {selectedPurchase['S Approver'] === user.name && !inDisallowedState(selectedPurchase) && (
+                                                            <button
+                                                                onClick={() => handleWithdrawApproval(selectedPurchase, 'student')}
+                                                                disabled={approvalLoading}
+                                                                className="ml-4 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition duration-200"
+                                                            >
+                                                                {approvalLoading ? 'Withdrawing...' : 'Withdraw Approval'}
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 ) : (
                                                     <p className="text-gray-500 italic">Not yet approved</p>
@@ -687,9 +969,20 @@ export default function Dashboard({ user, accessToken, onSignOut }) {
                                             <div>
                                                 <p className="text-sm text-gray-500 mb-1">Mentor Approver</p>
                                                 {selectedPurchase['M Approver'] ? (
-                                                    <div className="flex items-center">
-                                                        <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
-                                                        <p className="font-semibold text-gray-800">{selectedPurchase['M Approver']}</p>
+                                                    <div className="flex items-center justify-between w-full">
+                                                        <div className="flex items-center">
+                                                            <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
+                                                            <p className="font-semibold text-gray-800">{selectedPurchase['M Approver']}</p>
+                                                        </div>
+                                                        {selectedPurchase['M Approver'] === user.name && !inDisallowedState(selectedPurchase) && (
+                                                            <button
+                                                                onClick={() => handleWithdrawApproval(selectedPurchase, 'mentor')}
+                                                                disabled={approvalLoading}
+                                                                className="ml-4 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition duration-200"
+                                                            >
+                                                                {approvalLoading ? 'Withdrawing...' : 'Withdraw Approval'}
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 ) : (
                                                     <p className="text-gray-500 italic">Not yet approved</p>
@@ -708,6 +1001,23 @@ export default function Dashboard({ user, accessToken, onSignOut }) {
                                                 ) : null;
                                             })()}
                                         </div>
+                                        {isEditing && (
+                                            <div className="flex justify-end gap-3 border-t pt-4">
+                                                <button
+                                                    onClick={() => setIsEditing(false)}
+                                                    className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-lg transition duration-200"
+                                                >
+                                                    Cancel
+                                                </button>
+                                                <button
+                                                    onClick={handleSaveEdit}
+                                                    disabled={savingLoading}
+                                                    className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition duration-200"
+                                                >
+                                                    {savingLoading ? 'Saving...' : 'Save Changes'}
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>

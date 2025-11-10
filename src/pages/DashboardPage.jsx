@@ -313,6 +313,10 @@ export default function Dashboard({ user, onSignOut }) {
         }
     };
 
+    const calculateTotalCost = (purchase) => {
+        return formatCurrency(purchase['Total Cost']);
+    }
+
     const handleApprove = async (purchase, approvalType) => {
         try {
             setApprovalLoading(true);
@@ -618,14 +622,14 @@ export default function Dashboard({ user, onSignOut }) {
                                                     <DollarSign className="w-4 h-4 mr-2 text-gray-400" />
                                                     <div>
                                                         <p className="text-xs text-gray-500">Total Cost</p>
-                                                        <p className="font-medium">{formatCurrency(purchase['Total Cost'])}</p>
+                                                        <p className="font-medium">{calculateTotalCost(purchase)}</p>
                                                     </div>
                                                 </div>
                                             </div>
 
                                             {purchase['Comments'] && (
                                                 <p className="mt-3 text-sm text-gray-600 italic">
-                                                    "{purchase['Comments']}"
+                                                    {purchase['Comments']}
                                                 </p>
                                             )}
 
@@ -827,7 +831,7 @@ export default function Dashboard({ user, onSignOut }) {
                                         </div>
                                         <div>
                                             <p className="text-sm text-blue-700 mb-1">Total Cost</p>
-                                            <p className="font-semibold text-gray-800">{formatCurrency(selectedPurchase['Total Cost'])}</p>
+                                            <p className="font-medium">{calculateTotalCost(selectedPurchase)}</p>
                                         </div>
                                     </div>
                                 </div>

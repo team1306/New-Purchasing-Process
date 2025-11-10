@@ -25,19 +25,23 @@ export default function RequestForm({ user, onClose, onCreated, presetFields = {
         'Shipping': '',
         'Comments': '',
         'Date Requested': new Date().toISOString().split('T')[0],
-        'Requestor': user.name,
+        'Requester': 'N/A',
         'State': 'Pending Approval',
         ...presetFields
     });
 
     const [savingLoading, setSavingLoading] = useState(false);
+    const requiredFields = ['Item Description', 'Category', 'Quantity', 'Unit Price'];
+    const isFormValid = requiredFields.every(
+        field => newRequest[field] && newRequest[field].toString().trim() !== ''
+    );
 
     const handleCreateRequest = async () => {
         try {
             setSavingLoading(true);
             let token = getAccessToken();
             if (!token) token = await requestSheetsAccess();
-
+            newRequest['Requester'] = user.name;
             // Replace with your actual create function
             await createPurchase(newRequest, token)
 
@@ -68,6 +72,9 @@ export default function RequestForm({ user, onClose, onCreated, presetFields = {
 
                 {/* Form Fields */}
                 <div className="space-y-4">
+                    <label className="block text-gray-700 font-medium">
+                        Item Description <span className="text-red-500">*</span>
+                    </label>
                     <input
                         type="text"
                         placeholder="Item Description"
@@ -77,6 +84,9 @@ export default function RequestForm({ user, onClose, onCreated, presetFields = {
                         }
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 placeholder-gray-400 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 text-gray-700"
                     />
+                    <label className="block text-gray-700 font-medium">
+                        Item Link <span className="text-gray-400 italic">(Optional)</span>
+                    </label>
                     <input
                         type="text"
                         placeholder="Item Link"
@@ -86,6 +96,9 @@ export default function RequestForm({ user, onClose, onCreated, presetFields = {
                         }
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 placeholder-gray-400 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 text-gray-700"
                     />
+                    <label className="block text-gray-700 font-medium">
+                        Category <span className="text-red-500">*</span>
+                    </label>
                     <select
                         value={newRequest['Category']}
                         onChange={(e) =>
@@ -98,6 +111,9 @@ export default function RequestForm({ user, onClose, onCreated, presetFields = {
                             <option key={cat} value={cat}>{cat}</option>
                         ))}
                     </select>
+                    <label className="block text-gray-700 font-medium">
+                        Quantity <span className="text-red-500">*</span>
+                    </label>
                     <input
                         type="number"
                         placeholder="Quantity"
@@ -107,6 +123,9 @@ export default function RequestForm({ user, onClose, onCreated, presetFields = {
                         }
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 placeholder-gray-400 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 text-gray-700"
                     />
+                    <label className="block text-gray-700 font-medium">
+                        Unit Price <span className="text-red-500">*</span>
+                    </label>
                     <input
                         type="number"
                         placeholder="Unit Price"
@@ -116,15 +135,9 @@ export default function RequestForm({ user, onClose, onCreated, presetFields = {
                         }
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 placeholder-gray-400 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 text-gray-700"
                     />
-                    <input
-                        type="number"
-                        placeholder="Shipping"
-                        value={newRequest['Shipping']}
-                        onChange={(e) =>
-                            setNewRequest(prev => ({ ...prev, 'Shipping': e.target.value }))
-                        }
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 placeholder-gray-400 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 text-gray-700"
-                    />
+                    <label className="block text-gray-700 font-medium">
+                        Comments <span className="text-gray-400 italic">(Optional)</span>
+                    </label>
                     <textarea
                         placeholder="Comments"
                         value={newRequest['Comments']}
@@ -136,11 +149,20 @@ export default function RequestForm({ user, onClose, onCreated, presetFields = {
                     />
                 </div>
 
+                {!isFormValid && (
+                    <p className="text-sm text-red-500 mt-2">
+                        Please fill out all required fields (*).
+                    </p>
+                )}
                 {/* Submit Button */}
                 <button
-                    className="mt-6 w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg font-semibold disabled:opacity-50"
+                    className={`mt-6 w-full py-2 rounded-lg font-semibold text-white ${
+                        isFormValid
+                            ? 'bg-blue-500 hover:bg-blue-600'
+                            : 'bg-gray-300 cursor-not-allowed'
+                    }`}
                     onClick={handleCreateRequest}
-                    disabled={savingLoading}
+                    disabled={!isFormValid || savingLoading}
                 >
                     {savingLoading ? 'Saving...' : 'Create Request'}
                 </button>

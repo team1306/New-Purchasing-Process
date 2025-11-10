@@ -6,6 +6,7 @@ import { initializeGoogleSignIn, parseJwt } from './utils/googleAuth';
 
 function App() {
     const [user, setUser] = useState(null);
+    const [accessToken, setAccessToken] = useState(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -16,6 +17,8 @@ function App() {
                 email: userObject.email,
                 picture: userObject.picture,
             });
+            // Store the access token (JWT credential)
+            setAccessToken(response.credential);
         };
 
         initializeGoogleSignIn(handleCredentialResponse, () => setLoading(false));
@@ -24,6 +27,7 @@ function App() {
     const handleSignOut = () => {
         window.google.accounts.id.disableAutoSelect();
         setUser(null);
+        setAccessToken(null);
     };
 
     if (loading) {
@@ -34,7 +38,7 @@ function App() {
         return <LoginPage />;
     }
 
-    return <Dashboard user={user} onSignOut={handleSignOut} />;
+    return <Dashboard user={user} accessToken={accessToken} onSignOut={handleSignOut} />;
 }
 
 export default App;

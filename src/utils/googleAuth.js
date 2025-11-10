@@ -10,6 +10,7 @@ export const initializeGoogleSignIn = (callback, onComplete) => {
                 client_id: GOOGLE_CLIENT_ID,
                 callback: callback,
                 auto_select: true,
+                scope: 'https://www.googleapis.com/auth/spreadsheets'
             });
 
             // Try to prompt automatic sign-in

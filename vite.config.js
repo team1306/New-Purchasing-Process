@@ -8,4 +8,5 @@ export default defineConfig({
             'Permissions-Policy': 'identity-credentials-get=*',
         },
     },
+    base: '/New-Purchasing-Process/'
 })

@@ -305,6 +305,7 @@ export default function Dashboard({ user, onSignOut }) {
                                     src={user.picture}
                                     alt="Profile"
                                     className="w-12 h-12 rounded-full border-2 border-white shadow-lg"
+                                    referrerPolicy="no-referrer"
                                 />
                                 <div className="text-right">
                                     <p className="font-semibold">{user.name}</p>

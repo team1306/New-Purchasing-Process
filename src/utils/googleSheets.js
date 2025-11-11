@@ -1,8 +1,8 @@
-const SPREADSHEET_ID = '1CY6O9AULg9PiHQ9gy7nzOth4446plJyVEBunKZ8a7X8';
+const SPREADSHEET_ID = import.meta.env.VITE_SPREADSHEET;
 
 // Tab names
-const PURCHASES_TAB = 'Item List';
-const VALIDATION_TAB = 'Validation Lists';
+const PURCHASES_TAB = import.meta.env.VITE_PURCHASES_TAB;
+const VALIDATION_TAB = import.meta.env.VITE_VALIDATION_TAB;
 
 /**
  * Fetches data from a specific sheet tab

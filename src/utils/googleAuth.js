@@ -1,4 +1,4 @@
-const GOOGLE_CLIENT_ID = '162846716753-jk3v37co0poisgp6okpufqe12r1c56c5.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_ID;
 
 let tokenClient;
 let accessToken = null;

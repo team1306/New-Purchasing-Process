@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LogOut, User, Search, Package, Calendar, DollarSign, Filter, X, RefreshCw, Plus, ChevronDown } from 'lucide-react';
+import { LogOut, User, Search, Package, Calendar, DollarSign, Filter, X, RefreshCw, Plus } from 'lucide-react';
 import {
     fetchPurchases,
     fetchValidation, updatePurchaseByRequestId,
@@ -94,7 +94,6 @@ export default function Dashboard({ user, onSignOut }) {
     const [error, setError] = useState(null);
     const [refreshing, setRefreshing] = useState(false);
     const [showCreateForm, setShowCreateForm] = useState(false);
-    const [openDropdownId, setOpenDropdownId] = useState(null);
 
     useEffect(() => {
         loadPurchases();

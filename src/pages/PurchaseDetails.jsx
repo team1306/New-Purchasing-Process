@@ -206,7 +206,7 @@ export default function PurchaseDetailModal({purchase, user, validation, onClose
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}
-                <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white sticky top-0 flex justify-between items-center">
+                <div className="bg-gradient-to-r from-red-700 to-orange-800 p-6 text-white sticky top-0 flex justify-between items-center">
                     <div className="flex items-center gap-4">
                         <div>
                             <h2 className="text-2xl font-bold mb-1">{purchase['Item Description']}</h2>

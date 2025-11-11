@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LogOut, User, Search, Package, Calendar, DollarSign, Filter, X, RefreshCw, Plus } from 'lucide-react';
+import { LogOut, User, Search, Package, Calendar, DollarSign, Filter, X, RefreshCw, Plus, Truck } from 'lucide-react';
 import {
     fetchPurchases,
     fetchValidation, updatePurchaseByRequestId,
@@ -94,6 +94,8 @@ export default function Dashboard({ user, onSignOut }) {
     const [error, setError] = useState(null);
     const [refreshing, setRefreshing] = useState(false);
     const [showCreateForm, setShowCreateForm] = useState(false);
+    const [editingShipping, setEditingShipping] = useState(null);
+    const [shippingValue, setShippingValue] = useState('');
 
     useEffect(() => {
         loadPurchases();
@@ -197,12 +199,45 @@ export default function Dashboard({ user, onSignOut }) {
             };
 
             await updatePurchaseByRequestId(purchase['Request ID'], updatedPurchase, getAccessToken());
-            setOpenDropdownId(null); // Close dropdown after state change
             await loadPurchases();
         } catch (err) {
             console.error('Error updating state:', err);
             alert('Failed to update state. Please try again.');
         }
+    };
+
+    const handleShippingEdit = (purchase) => {
+        setEditingShipping(purchase['Request ID']);
+        const currentShipping = purchase['Shipping'] ? parseCurrency(purchase['Shipping']).toString() : '0';
+        setShippingValue(currentShipping);
+    };
+
+    const handleShippingSave = async (purchase) => {
+        try {
+            const numericValue = parseFloat(shippingValue);
+            if (isNaN(numericValue) || numericValue < 0) {
+                alert('Please enter a valid shipping cost');
+                return;
+            }
+
+            const updatedPurchase = {
+                ...purchase,
+                'Shipping': formatCurrency(numericValue)
+            };
+
+            await updatePurchaseByRequestId(purchase['Request ID'], updatedPurchase, getAccessToken());
+            setEditingShipping(null);
+            setShippingValue('');
+            await loadPurchases();
+        } catch (err) {
+            console.error('Error updating shipping:', err);
+            alert('Failed to update shipping. Please try again.');
+        }
+    };
+
+    const handleShippingCancel = () => {
+        setEditingShipping(null);
+        setShippingValue('');
     };
 
     const toggleCategory = (category) => {
@@ -234,7 +269,7 @@ export default function Dashboard({ user, onSignOut }) {
             <div className="max-w-7xl mx-auto pt-8">
                 {/* Header Card */}
                 <div className="bg-white rounded-2xl shadow-2xl overflow-hidden mb-6">
-                    <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white">
+                    <div className="bg-gradient-to-r from-red-700 to-orange-800 p-6 text-white">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-4">
                                 <div>
@@ -470,6 +505,69 @@ export default function Dashboard({ user, onSignOut }) {
                                                 </p>
                                             </div>
 
+                                            {/* Shipping Edit Section - Only for Directors */}
+                                            {validation['Directors']?.includes(user.name) && (
+                                                <div className="border-t pt-3">
+                                                    {editingShipping === purchase['Request ID'] ? (
+                                                        <div className="flex flex-col gap-2">
+                                                            <p className="text-xs text-gray-500 font-medium">Edit Shipping:</p>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-sm text-gray-600">$</span>
+                                                                <input
+                                                                    type="number"
+                                                                    step="0.01"
+                                                                    min="0"
+                                                                    value={shippingValue}
+                                                                    onChange={(e) => setShippingValue(e.target.value)}
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                    className="w-24 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                                    autoFocus
+                                                                />
+                                                            </div>
+                                                            <div className="flex gap-2">
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleShippingSave(purchase);
+                                                                    }}
+                                                                    className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded transition duration-200"
+                                                                >
+                                                                    Save
+                                                                </button>
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleShippingCancel();
+                                                                    }}
+                                                                    className="px-3 py-1.5 bg-gray-300 hover:bg-gray-400 text-gray-800 text-xs font-semibold rounded transition duration-200"
+                                                                >
+                                                                    Cancel
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex flex-col gap-2">
+                                                            <div>
+                                                                <p className="text-xs text-gray-500">Shipping</p>
+                                                                <p className="text-sm font-medium text-gray-700">
+                                                                    {formatCurrency(purchase['Shipping'])}
+                                                                </p>
+                                                            </div>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleShippingEdit(purchase);
+                                                                }}
+                                                                className="px-3 py-1.5 bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs font-semibold rounded transition duration-200 flex items-center justify-center gap-1"
+                                                            >
+                                                                <Truck className="w-3 h-3" />
+                                                                Edit Shipping
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
                                             {/* State Change Buttons */}
                                             {(() => {
                                                 const availableStates = getAvailableStateTransitions(
@@ -479,7 +577,7 @@ export default function Dashboard({ user, onSignOut }) {
 
                                                 if (availableStates.length > 0) {
                                                     return (
-                                                        <div className="flex flex-col gap-2">
+                                                        <div className="flex flex-col gap-2 border-t pt-3">
                                                             <p className="text-xs text-gray-500 font-medium">Change State:</p>
                                                             {availableStates.map(state => (
                                                                 <button

@@ -6,7 +6,7 @@ import {
 } from '../utils/googleSheets';
 import RequestForm from "./RequestForm.jsx";
 import PurchaseDetailModal from "./PurchaseDetails.jsx";
-import {getAccessToken} from "../utils/googleAuth.js";
+import {getAccessToken, getRefreshedAccessToken} from "../utils/googleAuth.js";
 
 // Easy to modify category list
 export const CATEGORIES = [
@@ -145,8 +145,8 @@ export default function Dashboard({ user, onSignOut }) {
         try {
             setRefreshing(true);
             const [purchasesData, validationData] = await Promise.all([
-                fetchPurchases(),
-                fetchValidation()
+                fetchPurchases(await getRefreshedAccessToken()),
+                fetchValidation(await getRefreshedAccessToken()),
             ]);
 
             // Sort by Date Requested (most recent first)
@@ -198,7 +198,7 @@ export default function Dashboard({ user, onSignOut }) {
                 'State': newState
             };
 
-            await updatePurchaseByRequestId(purchase['Request ID'], updatedPurchase, getAccessToken());
+            await updatePurchaseByRequestId(purchase['Request ID'], updatedPurchase, await getRefreshedAccessToken());
             await loadPurchases();
         } catch (err) {
             console.error('Error updating state:', err);
@@ -224,8 +224,7 @@ export default function Dashboard({ user, onSignOut }) {
                 ...purchase,
                 'Shipping': formatCurrency(numericValue)
             };
-
-            await updatePurchaseByRequestId(purchase['Request ID'], updatedPurchase, getAccessToken());
+            await updatePurchaseByRequestId(purchase['Request ID'], updatedPurchase, await getRefreshedAccessToken());
             setEditingShipping(null);
             setShippingValue('');
             await loadPurchases();

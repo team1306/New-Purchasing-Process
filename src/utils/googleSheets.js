@@ -1,5 +1,4 @@
 const SPREADSHEET_ID = '1CY6O9AULg9PiHQ9gy7nzOth4446plJyVEBunKZ8a7X8';
-const API_KEY = 'AIzaSyAYCPj5v3IfCW2zowYhM0G5bpCp-DbUOjM';
 
 // Tab names
 const PURCHASES_TAB = 'Item List';
@@ -8,16 +7,34 @@ const VALIDATION_TAB = 'Validation Lists';
 /**
  * Fetches data from a specific sheet tab
  * @param {string} sheetName - Name of the sheet tab
+ * @param {string} accessToken - OAuth2 access token from Google Sign-In
  * @returns {Promise<Array>} Array of rows, where each row is an array of cell values
  */
-const fetchSheetData = async (sheetName) => {
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${sheetName}?key=${API_KEY}`;
+const fetchSheetData = async (sheetName, accessToken) => {
+    if (!accessToken) {
+        throw new Error('Access token is required but was not provided');
+    }
+
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${sheetName}`;
 
     try {
-        const response = await fetch(url);
+        const response = await fetch(url, {
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+            }
+        });
+
         if (!response.ok) {
+            const errorBody = await response.text();
+            console.error(`API Error Response:`, errorBody);
+
+            if (response.status === 401) {
+                throw new Error(`Authentication failed (401). Please check: 1) Token is valid, 2) Token hasn't expired, 3) Required scopes are included (https://www.googleapis.com/auth/spreadsheets)`);
+            }
             throw new Error(`HTTP error! status: ${response.status}`);
         }
+
         const data = await response.json();
         return data.values || [];
     } catch (error) {
@@ -35,7 +52,7 @@ const fetchSheetData = async (sheetName) => {
 export const deletePurchaseByRequestId = async (requestId, accessToken) => {
     try {
         // Fetch all purchases to find the row index
-        const purchases = await fetchSheetData(PURCHASES_TAB);
+        const purchases = await fetchSheetData(PURCHASES_TAB, accessToken);
         const headers = purchases[0] || [];
         const dataRows = purchases.slice(1);
 
@@ -49,11 +66,18 @@ export const deletePurchaseByRequestId = async (requestId, accessToken) => {
         const actualRowIndex = rowIndex + 1; // +1 for header row
 
         // Get sheet ID
-        const sheetInfoUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}?fields=sheets.properties&key=${API_KEY}`;
-        const sheetInfoResp = await fetch(sheetInfoUrl);
+        const sheetInfoUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}?fields=sheets.properties`;
+        const sheetInfoResp = await fetch(sheetInfoUrl, {
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+            }
+        });
+
         if (!sheetInfoResp.ok) {
             throw new Error(`Failed to fetch spreadsheet info: ${sheetInfoResp.status}`);
         }
+
         const sheetInfo = await sheetInfoResp.json();
         const sheet = sheetInfo.sheets.find(s => s.properties.title === PURCHASES_TAB);
         if (!sheet) {
@@ -101,10 +125,11 @@ export const deletePurchaseByRequestId = async (requestId, accessToken) => {
 
 /**
  * Fetches purchases data and returns as array of objects
+ * @param {string} accessToken - OAuth2 access token from Google Sign-In
  * @returns {Promise<Array>} Array of purchase objects
  */
-export const fetchPurchases = async () => {
-    const rows = await fetchSheetData(PURCHASES_TAB);
+export const fetchPurchases = async (accessToken) => {
+    const rows = await fetchSheetData(PURCHASES_TAB, accessToken);
 
     if (rows.length === 0) {
         return [];
@@ -124,10 +149,11 @@ export const fetchPurchases = async () => {
 
 /**
  * Fetches validation data (groups and people matrix)
+ * @param {string} accessToken - OAuth2 access token from Google Sign-In
  * @returns {Promise<Object>} Object with groups as keys and people arrays as values
  */
-export const fetchValidation = async () => {
-    const rows = await fetchSheetData(VALIDATION_TAB);
+export const fetchValidation = async (accessToken) => {
+    const rows = await fetchSheetData(VALIDATION_TAB, accessToken);
 
     if (rows.length === 0) {
         return {};
@@ -156,13 +182,14 @@ export const fetchValidation = async () => {
 
 /**
  * Fetches all data from both tabs
+ * @param {string} accessToken - OAuth2 access token from Google Sign-In
  * @returns {Promise<Object>} Object containing purchases and validation data
  */
-export const fetchAllData = async () => {
+export const fetchAllData = async (accessToken) => {
     try {
         const [purchases, validation] = await Promise.all([
-            fetchPurchases(),
-            fetchValidation()
+            fetchPurchases(accessToken),
+            fetchValidation(accessToken)
         ]);
 
         return {
@@ -222,7 +249,7 @@ export const updatePurchases = async (range, values, accessToken) => {
  */
 export const updatePurchaseByRequestId = async (requestId, updates, accessToken) => {
     // First fetch all purchases to find the row
-    const purchases = await fetchPurchases();
+    const purchases = await fetchPurchases(accessToken);
     const rowIndex = purchases.findIndex(p => p['Request ID'] === requestId);
 
     if (rowIndex === -1) {
@@ -233,7 +260,7 @@ export const updatePurchaseByRequestId = async (requestId, updates, accessToken)
     const actualRowNumber = rowIndex + 2;
 
     // Get the header row to map column names to letters
-    const headers = await fetchSheetData(PURCHASES_TAB);
+    const headers = await fetchSheetData(PURCHASES_TAB, accessToken);
     const headerRow = headers[0];
 
     // Update each field
@@ -263,7 +290,7 @@ export const updatePurchaseByRequestId = async (requestId, updates, accessToken)
 export const createPurchase = async (purchaseData, accessToken) => {
     try {
         // Fetch existing purchases to get the header row
-        const rows = await fetchSheetData(PURCHASES_TAB);
+        const rows = await fetchSheetData(PURCHASES_TAB, accessToken);
         const headerRow = rows[0];
         if (!headerRow) throw new Error('Header row not found in Purchases sheet');
 
@@ -294,4 +321,3 @@ export const createPurchase = async (purchaseData, accessToken) => {
         throw error;
     }
 };
-

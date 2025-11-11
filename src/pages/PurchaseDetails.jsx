@@ -1,6 +1,6 @@
 import {useEffect, useState} from 'react';
 import { X, CheckCircle, AlertCircle, XCircle, Pencil, Trash2, Loader} from 'lucide-react';
-import { getAccessToken, requestSheetsAccess } from '../utils/googleAuth';
+import {getAccessToken, getRefreshedAccessToken, requestSheetsAccess} from '../utils/googleAuth';
 import { updatePurchaseByRequestId, deletePurchaseByRequestId } from '../utils/googleSheets';
 import {
     calculateTotalCost,
@@ -115,10 +115,7 @@ export default function PurchaseDetailModal({purchase, user, validation, onClose
 
         try {
             setSavingLoading(true);
-            let token = getAccessToken();
-            if (!token) token = await requestSheetsAccess();
-
-            await deletePurchaseByRequestId(purchase['Request ID'], token);
+            await deletePurchaseByRequestId(purchase['Request ID'], await getRefreshedAccessToken());
             onUpdate();
             onClose();
         } catch (err) {
@@ -132,10 +129,6 @@ export default function PurchaseDetailModal({purchase, user, validation, onClose
     const handleApprove = async (approvalType) => {
         try {
             setApprovalLoading(true);
-            let token = getAccessToken();
-            if (!token) {
-                token = await requestSheetsAccess();
-            }
 
             const updates = {};
             if (approvalType === 'student') {
@@ -144,7 +137,7 @@ export default function PurchaseDetailModal({purchase, user, validation, onClose
                 updates['M Approver'] = user.name;
             }
 
-            await updatePurchaseByRequestId(purchase['Request ID'], updates, token);
+            await updatePurchaseByRequestId(purchase['Request ID'], updates, await getRefreshedAccessToken());
             onUpdate();
         } catch (err) {
             console.error('Error approving purchase:', err);
@@ -157,10 +150,6 @@ export default function PurchaseDetailModal({purchase, user, validation, onClose
     const handleWithdrawApproval = async (approvalType) => {
         try {
             setApprovalLoading(true);
-            let token = getAccessToken();
-            if (!token) {
-                token = await requestSheetsAccess();
-            }
 
             const updates = {};
             if (approvalType === 'student') {
@@ -169,7 +158,7 @@ export default function PurchaseDetailModal({purchase, user, validation, onClose
                 updates['M Approver'] = '';
             }
 
-            await updatePurchaseByRequestId(purchase['Request ID'], updates, token);
+            await updatePurchaseByRequestId(purchase['Request ID'], updates, await getRefreshedAccessToken());
             onUpdate();
         } catch (err) {
             console.error('Error withdrawing approval:', err);
@@ -182,10 +171,8 @@ export default function PurchaseDetailModal({purchase, user, validation, onClose
     const handleSaveEdit = async () => {
         try {
             setSavingLoading(true);
-            let token = getAccessToken();
-            if (!token) token = await requestSheetsAccess();
 
-            await updatePurchaseByRequestId(purchase['Request ID'], editedPurchase, token);
+            await updatePurchaseByRequestId(purchase['Request ID'], editedPurchase, await getRefreshedAccessToken());
             onUpdate();
             setIsEditing(false);
         } catch (err) {

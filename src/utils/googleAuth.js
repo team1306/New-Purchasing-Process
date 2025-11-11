@@ -104,6 +104,12 @@ export const getAccessToken = () => {
     return accessToken;
 };
 
+export const getRefreshedAccessToken = async () => {
+    let token = getAccessToken();
+    if (!token) token = await requestSheetsAccess();
+    return token;
+}
+
 /**
  * Clear saved tokens on sign out
  */

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import {createPurchase, updatePurchaseByRequestId} from '../utils/googleSheets';
-import { getAccessToken, requestSheetsAccess } from '../utils/googleAuth';
+import {getAccessToken, getRefreshedAccessToken, requestSheetsAccess} from '../utils/googleAuth';
 
 const CATEGORIES = [
     'Robot',
@@ -39,11 +39,9 @@ export default function RequestForm({ user, onClose, onCreated, presetFields = {
     const handleCreateRequest = async () => {
         try {
             setSavingLoading(true);
-            let token = getAccessToken();
-            if (!token) token = await requestSheetsAccess();
             newRequest['Requester'] = user.name;
             // Replace with your actual create function
-            await createPurchase(newRequest, token)
+            await createPurchase(newRequest, await getRefreshedAccessToken())
 
             if (onCreated) onCreated();
             onClose();

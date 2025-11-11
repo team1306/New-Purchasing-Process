@@ -6,7 +6,7 @@ import {
 } from '../utils/googleSheets';
 import RequestForm from "./RequestForm.jsx";
 import PurchaseDetailModal from "./PurchaseDetails.jsx";
-import {getAccessToken, getRefreshedAccessToken} from "../utils/googleAuth.js";
+import {getRefreshedAccessToken} from "../utils/googleAuth.js";
 
 // Easy to modify category list
 export const CATEGORIES = [

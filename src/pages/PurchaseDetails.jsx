@@ -1,6 +1,6 @@
 import {useEffect, useState} from 'react';
 import { X, CheckCircle, AlertCircle, XCircle, Pencil, Trash2, Loader} from 'lucide-react';
-import {getAccessToken, getRefreshedAccessToken, requestSheetsAccess} from '../utils/googleAuth';
+import {getRefreshedAccessToken} from '../utils/googleAuth';
 import { updatePurchaseByRequestId, deletePurchaseByRequestId } from '../utils/googleSheets';
 import {
     calculateTotalCost,

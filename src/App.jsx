@@ -21,7 +21,7 @@ function App() {
             try {
                 await requestSheetsAccess();
             } catch (err) {
-                console.error('Failed to get Sheets access:', err);
+                console.error('Failed to get Sheets access: ', err);
             }
         };
 

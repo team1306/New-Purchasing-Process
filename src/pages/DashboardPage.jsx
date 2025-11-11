@@ -1,16 +1,15 @@
 import { useState, useEffect } from 'react';
-import { LogOut, User, Mail, Search, Package, Calendar, DollarSign, Filter, X, CheckCircle, AlertCircle, XCircle, RefreshCw, Pencil, Trash2, Loader, Plus } from 'lucide-react';
+import { LogOut, User, Search, Package, Calendar, DollarSign, Filter, X, RefreshCw, Plus, ChevronDown } from 'lucide-react';
 import {
-    deletePurchaseByRequestId,
     fetchPurchases,
-    fetchValidation,
-    updatePurchaseByRequestId
+    fetchValidation, updatePurchaseByRequestId,
 } from '../utils/googleSheets';
-import { getAccessToken, requestSheetsAccess } from '../utils/googleAuth';
 import RequestForm from "./RequestForm.jsx";
+import PurchaseDetailModal from "./PurchaseDetails.jsx";
+import {getAccessToken} from "../utils/googleAuth.js";
 
 // Easy to modify category list
-const CATEGORIES = [
+export const CATEGORIES = [
     'Robot',
     'Inventory',
     'Outreach',
@@ -22,7 +21,7 @@ const CATEGORIES = [
 ];
 
 // State filter options
-const STATES = [
+export const STATES = [
     'Pending Approval',
     'Approved',
     'Received',
@@ -31,13 +30,56 @@ const STATES = [
     'Completed'
 ];
 
-const STATE_COLORS = {
+export const STATE_COLORS = {
     'Pending Approval': 'bg-yellow-100 text-yellow-800',
     'Approved': 'bg-blue-100 text-blue-800',
     'Received': 'bg-green-100 text-green-800',
     'Purchased': 'bg-purple-100 text-purple-800',
     'On Hold': 'bg-gray-100 text-gray-800',
     'Completed': 'bg-green-100 text-green-800'
+};
+
+export const StateBadge = ({ state }) => {
+    if (!state) return null;
+
+    const colorClass = STATE_COLORS[state] || 'bg-gray-100 text-gray-800';
+
+    return (
+        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${colorClass}`}>{state}</span>
+    );
+};
+
+export const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+    });
+};
+
+export const formatCurrency = (amount) => {
+    if (!amount) return '$0.00';
+    const num = parseFloat(amount);
+    return isNaN(num) ? amount : `$${num.toFixed(2)}`;
+};
+
+export const calculateTotalCost = (purchase) => {
+    const itemPrice = parseCurrency(purchase['Unit Price']) ?? 0;
+    const quantity = parseCurrency(purchase['Quantity']) ?? 0;
+    const shipping = parseCurrency(purchase['Shipping']) ?? 0;
+
+    const cost = (itemPrice * quantity) + shipping;
+    purchase['Total Cost'] = formatCurrency(cost);
+    return purchase['Total Cost'];
+};
+
+export const parseCurrency = (formatted) => {
+    if (!formatted) return 0;
+    // Remove any non-numeric characters except for the decimal point
+    const num = parseFloat(formatted.replace(/[^0-9.-]+/g, ''));
+    return isNaN(num) ? 0 : num;
 };
 
 export default function Dashboard({ user, onSignOut }) {
@@ -50,12 +92,9 @@ export default function Dashboard({ user, onSignOut }) {
     const [selectedPurchase, setSelectedPurchase] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [approvalLoading, setApprovalLoading] = useState(false);
-    const [savingLoading, setSavingLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
-    const [isEditing, setIsEditing] = useState(false);
-    const [editedPurchase, setEditedPurchase] = useState({});
     const [showCreateForm, setShowCreateForm] = useState(false);
+    const [openDropdownId, setOpenDropdownId] = useState(null);
 
     useEffect(() => {
         loadPurchases();
@@ -92,38 +131,13 @@ export default function Dashboard({ user, onSignOut }) {
     const loadPurchases = async () => {
         try {
             setLoading(true);
-            const [purchasesData, validationData] = await Promise.all([
-                fetchPurchases(),
-                fetchValidation()
-            ]);
-
-            // Sort by Date Requested (most recent first)
-            const sorted = purchasesData.sort((a, b) => {
-                const dateA = new Date(a['Date Requested']);
-                const dateB = new Date(b['Date Requested']);
-                return dateB - dateA; // Descending order
-            });
-
-            setPurchases(sorted);
-            setFilteredPurchases(sorted);
-            setValidation(validationData);
-            setError(null);
+            await handleRefresh();
         } catch (err) {
             console.error('Error loading data:', err);
             setError('Failed to load data. Please try again.');
         } finally {
             setLoading(false);
         }
-    };
-
-    const StateBadge = ({ state }) => {
-        if (!state) return null;
-
-        const colorClass = STATE_COLORS[state] || 'bg-gray-100 text-gray-800';
-
-        return (
-            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${colorClass}`}>{state}</span>
-        );
     };
 
     const handleRefresh = async () => {
@@ -144,6 +158,17 @@ export default function Dashboard({ user, onSignOut }) {
             setPurchases(sorted);
             setFilteredPurchases(sorted);
             setValidation(validationData);
+
+            // Update the selected purchase with fresh data if modal is open
+            if (selectedPurchase) {
+                const updatedPurchase = sorted.find(
+                    p => p['Request ID'] === selectedPurchase['Request ID']
+                );
+                if (updatedPurchase) {
+                    setSelectedPurchase(updatedPurchase);
+                }
+            }
+
             setError(null);
         } catch (err) {
             console.error('Error refreshing data:', err);
@@ -153,27 +178,39 @@ export default function Dashboard({ user, onSignOut }) {
         }
     };
 
-    const formatDate = (dateString) => {
-        if (!dateString) return 'N/A';
-        const date = new Date(dateString);
-        return date.toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-        });
+    const getAvailableStateTransitions = (currentState, userName) => {
+        const isLeadership = validation['Presidents']?.includes(userName) || validation['Directors']?.includes(userName);
+
+        if (isLeadership) {
+            // Leadership can change to any state except the current one
+            return STATES.filter(state => state !== currentState);
+        }
+
+        // Regular users have limited transitions
+        const transitions = {
+            'Pending Approval': ['On Hold'],
+            'Approved': ['Purchased', 'On Hold'],
+            'Purchased': ['Received', 'Completed'],
+            'On Hold': ['Pending Approval'],
+        };
+
+        return transitions[currentState] || [];
     };
 
-    const formatCurrency = (amount) => {
-        if (!amount) return '$0.00';
-        const num = parseFloat(amount);
-        return isNaN(num) ? amount : `${num.toFixed(2)}`;
-    };
+    const handleStateChange = async (purchase, newState) => {
+        try {
+            const updatedPurchase = {
+                ...purchase,
+                'State': newState
+            };
 
-    const parseCurrency = (formatted) => {
-        if (!formatted) return 0;
-        // Remove any non-numeric characters except for the decimal point
-        const num = parseFloat(formatted.replace(/[^0-9.-]+/g, ''));
-        return isNaN(num) ? 0 : num;
+            await updatePurchaseByRequestId(purchase['Request ID'], updatedPurchase, getAccessToken());
+            setOpenDropdownId(null); // Close dropdown after state change
+            await loadPurchases();
+        } catch (err) {
+            console.error('Error updating state:', err);
+            alert('Failed to update state. Please try again.');
+        }
     };
 
     const toggleCategory = (category) => {
@@ -199,221 +236,6 @@ export default function Dashboard({ user, onSignOut }) {
     };
 
     const activeFilterCount = selectedCategories.length + selectedStates.length;
-
-    const getUserApprovalPermissions = () => {
-        const userName = user.name;
-        const permissions = {
-            canStudentApprove: false,
-            studentApprovalLimit: 0,
-            canMentorApprove: false,
-            mentorApprovalLimit: 0
-        };
-
-        // Check Presidents column - can student approve any request
-        if (validation['Presidents']?.includes(userName)) {
-            permissions.canStudentApprove = true;
-            permissions.studentApprovalLimit = Infinity;
-        }
-        // Check Leadership column - can student approve up to $500
-        else if (validation['Leadership']?.includes(userName)) {
-            permissions.canStudentApprove = true;
-            permissions.studentApprovalLimit = 500;
-        }
-
-        // Check Mentor column - can mentor approve up to $500
-        if (validation['Mentor']?.includes(userName)) {
-            permissions.canMentorApprove = true;
-            permissions.mentorApprovalLimit = 500;
-        }
-        // Check Directors column - can mentor approve any request
-        else if (validation['Directors']?.includes(userName)) {
-            permissions.canMentorApprove = true;
-            permissions.mentorApprovalLimit = Infinity;
-        }
-
-        return permissions;
-    };
-
-    const inDisallowedState = (purchase) => {
-        const disallowedStates = ['Purchased', 'Received', 'Completed'];
-        return disallowedStates.includes(purchase['State']);
-    }
-
-    const canApproveRequest = (purchase, approvalType) => {
-        const totalCost = parseFloat(purchase['Total Cost']) || 0;
-
-        if(inDisallowedState(purchase)) {
-            return {canApprove: false, reason: 'Already approved'}
-        }
-
-        // Nobody can approve requests over $2000
-        if (totalCost > 2000) {
-            return { canApprove: false, reason: 'Requests over $2,000 cannot be approved' };
-        }
-
-        if(user.name === purchase['Requestor']){
-            return { canApprove: false, reason: 'Requestor' };
-        }
-
-        const permissions = getUserApprovalPermissions();
-
-        if (approvalType === 'student') {
-            if (!permissions.canStudentApprove) {
-                return { canApprove: false, reason: 'You do not have student approval permissions' };
-            }
-            if (totalCost > permissions.studentApprovalLimit) {
-                return { canApprove: false, reason: `You can only student approve requests up to ${permissions.studentApprovalLimit}` };
-            }
-            return { canApprove: true };
-        }
-
-        if (approvalType === 'mentor') {
-            if (!permissions.canMentorApprove) {
-                return { canApprove: false, reason: 'You do not have mentor approval permissions' };
-            }
-            if (totalCost > permissions.mentorApprovalLimit) {
-                return { canApprove: false, reason: `You can only mentor approve requests up to ${permissions.mentorApprovalLimit}` };
-            }
-            return { canApprove: true };
-        }
-
-        return { canApprove: false, reason: 'Unknown approval type' };
-    };
-
-    const canDeletePurchase = (purchase) => {
-        const { canStudentApprove, canMentorApprove } = getUserApprovalPermissions();
-        const disallowedStates = ['Purchased', 'Received', 'Completed'];
-
-        // Must have approval permissions and not be in disallowed states
-        return (canStudentApprove || canMentorApprove) && !disallowedStates.includes(purchase['State']);
-    };
-
-    const handleDeletePurchase = async (purchase) => {
-        if (!window.confirm(`Are you sure you want to delete request "${purchase['Item Description']}"?`)) return;
-
-        try {
-            setSavingLoading(true); // reuse loading state
-            let token = getAccessToken();
-            if (!token) token = await requestSheetsAccess();
-
-            // Call your delete function
-            await deletePurchaseByRequestId(purchase['Request ID'], token);
-
-            // Reload the list
-            await loadPurchases();
-            if (selectedPurchase?.['Request ID'] === purchase['Request ID']) {
-                setSelectedPurchase(null);
-            }
-
-        } catch (err) {
-            console.error('Error deleting purchase:', err);
-            alert(`Failed to delete purchase: ${err.message}`);
-        } finally {
-            setSavingLoading(false);
-        }
-    };
-
-    const calculateTotalCost = (purchase) => {
-        return formatCurrency(purchase['Total Cost']);
-    }
-
-    const handleApprove = async (purchase, approvalType) => {
-        try {
-            setApprovalLoading(true);
-
-            // Get or request access token
-            let token = getAccessToken();
-            if (!token) {
-                token = await requestSheetsAccess();
-            }
-
-            const updates = {};
-
-            if (approvalType === 'student') {
-                updates['S Approver'] = user.name;
-            } else if (approvalType === 'mentor') {
-                updates['M Approver'] = user.name;
-            }
-
-            // Call the update function with the token
-            await updatePurchaseByRequestId(purchase['Request ID'], updates, token);
-
-            // Reload purchases to reflect the change
-            await loadPurchases();
-
-            // Update the selected purchase to show the new approver
-            const updatedPurchase = { ...selectedPurchase, ...updates };
-            setSelectedPurchase(updatedPurchase);
-
-        } catch (err) {
-            console.error('Error approving purchase:', err);
-            alert(`Failed to approve purchase: ${err.message}`);
-        } finally {
-            setApprovalLoading(false);
-        }
-    };
-
-    const handleWithdrawApproval = async (purchase, approvalType) => {
-        try {
-            setApprovalLoading(true);
-
-            let token = getAccessToken();
-            if (!token) {
-                token = await requestSheetsAccess();
-            }
-
-            const updates = {};
-            if (approvalType === 'student') {
-                updates['S Approver'] = ''; // clear approval
-            } else if (approvalType === 'mentor') {
-                updates['M Approver'] = '';
-            }
-
-            await updatePurchaseByRequestId(purchase['Request ID'], updates, token);
-            await loadPurchases();
-
-            const updatedPurchase = { ...selectedPurchase, ...updates };
-            setSelectedPurchase(updatedPurchase);
-        } catch (err) {
-            console.error('Error withdrawing approval:', err);
-            alert(`Failed to withdraw approval: ${err.message}`);
-        } finally {
-            setApprovalLoading(false);
-        }
-    };
-
-    const canEditPurchase = (purchase) => {
-        const userName = user.name;
-        const permissions = getUserApprovalPermissions();
-
-        // Can edit if requester
-        if (purchase['Requester'] === userName) return true;
-
-        // Can edit if user can approve this purchase
-        const student = canApproveRequest(purchase, 'student').canApprove;
-        const mentor = canApproveRequest(purchase, 'mentor').canApprove;
-        return student || mentor;
-    };
-
-    const handleSaveEdit = async () => {
-        try {
-            setSavingLoading(true);
-            let token = getAccessToken();
-            if (!token) token = await requestSheetsAccess();
-
-            await updatePurchaseByRequestId(selectedPurchase['Request ID'], editedPurchase, token);
-            await loadPurchases();
-
-            const updated = { ...selectedPurchase, ...editedPurchase };
-            setSelectedPurchase(updated);
-            setIsEditing(false);
-        } catch (err) {
-            console.error('Error saving edits:', err);
-            alert(`Failed to save changes: ${err.message}`);
-        } finally {
-            setSavingLoading(false);
-        }
-    };
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
@@ -447,8 +269,8 @@ export default function Dashboard({ user, onSignOut }) {
                                     <RequestForm
                                         user={user}
                                         onClose={() => setShowCreateForm(false)}
-                                        onCreated={loadPurchases} // refresh list after creation
-                                        presetFields={{ 'State': 'Pending Approval' }} // optional presets
+                                        onCreated={loadPurchases}
+                                        presetFields={{ 'State': 'Pending Approval' }}
                                     />
                                 )}
                             </div>
@@ -581,11 +403,13 @@ export default function Dashboard({ user, onSignOut }) {
                             {filteredPurchases.map((purchase, index) => (
                                 <div
                                     key={index}
-                                    onClick={() => setSelectedPurchase(purchase)}
-                                    className="p-6 hover:bg-gray-50 transition duration-150 cursor-pointer"
+                                    className="p-6 hover:bg-gray-50 transition duration-150"
                                 >
                                     <div className="flex justify-between items-start">
-                                        <div className="flex-1">
+                                        <div
+                                            className="flex-1 cursor-pointer"
+                                            onClick={() => setSelectedPurchase(purchase)}
+                                        >
                                             <div className="flex items-center gap-3 mb-2">
                                                 <h3 className="text-lg font-semibold text-gray-800">
                                                     {purchase['Item Description'] || 'No description'}
@@ -639,17 +463,86 @@ export default function Dashboard({ user, onSignOut }) {
                                                     target="_blank"
                                                     rel="noopener noreferrer"
                                                     className="inline-block mt-2 text-sm text-blue-600 hover:text-blue-700 hover:underline"
+                                                    onClick={(e) => e.stopPropagation()}
                                                 >
                                                     View Item Link →
                                                 </a>
                                             )}
                                         </div>
 
-                                        <div className="ml-4 text-right">
-                                            <p className="text-sm text-gray-500">Request ID</p>
-                                            <p className="font-mono text-sm font-semibold text-gray-700">
-                                                {purchase['Request ID'] || `REQ-${index + 1}`}
-                                            </p>
+                                        <div className="ml-4 text-right flex flex-col items-end gap-3">
+                                            <div>
+                                                <p className="text-sm text-gray-500">Request ID</p>
+                                                <p className="font-mono text-sm font-semibold text-gray-700">
+                                                    {purchase['Request ID'] || `REQ-${index + 1}`}
+                                                </p>
+                                            </div>
+
+                                            {/* State Change Dropdown */}
+                                            {(() => {
+                                                const availableStates = getAvailableStateTransitions(
+                                                    purchase['State'],
+                                                    user.name
+                                                );
+
+                                                if (availableStates.length > 0) {
+                                                    const dropdownId = purchase['Request ID'] || `purchase-${index}`;
+                                                    const isOpen = openDropdownId === dropdownId;
+
+                                                    return (
+                                                        <div className="relative">
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setOpenDropdownId(isOpen ? null : dropdownId);
+                                                                }}
+                                                                className="flex items-center gap-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold transition duration-200 whitespace-nowrap"
+                                                            >
+                                                                Change State
+                                                                <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                                                            </button>
+
+                                                            {isOpen && (
+                                                                <>
+                                                                    {/* Backdrop to close dropdown */}
+                                                                    <div
+                                                                        className="fixed inset-0 z-10"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            setOpenDropdownId(null);
+                                                                        }}
+                                                                    />
+
+                                                                    {/* Dropdown menu */}
+                                                                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-200 z-20">
+                                                                        <div className="py-1">
+                                                                            {availableStates.map(state => (
+                                                                                <button
+                                                                                    key={state}
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        if (window.confirm(`Change state to "${state}"?`)) {
+                                                                                            handleStateChange(purchase, state);
+                                                                                        } else {
+                                                                                            setOpenDropdownId(null);
+                                                                                        }
+                                                                                    }}
+                                                                                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition duration-150 flex items-center gap-2"
+                                                                                >
+                                                                                    <span className={`px-2 py-0.5 rounded text-xs font-semibold ${STATE_COLORS[state]}`}>
+                                                                                        {state}
+                                                                                    </span>
+                                                                                </button>
+                                                                            ))}
+                                                                        </div>
+                                                                    </div>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                }
+                                                return null;
+                                            })()}
                                         </div>
                                     </div>
                                 </div>
@@ -667,366 +560,13 @@ export default function Dashboard({ user, onSignOut }) {
 
                 {/* Purchase Detail Modal */}
                 {selectedPurchase && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={() => setSelectedPurchase(null)}>
-                        <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-                            {/* Header */}
-                            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white sticky top-0 flex justify-between items-center">
-                                {/* Left side: title + badge */}
-                                <div className="flex items-center gap-4">
-                                    <div>
-                                        <h2 className="text-2xl font-bold mb-1">{selectedPurchase['Item Description']}</h2>
-                                        <p className="text-blue-100">Request ID: {selectedPurchase['Request ID']}</p>
-                                    </div>
-
-                                    {/* Status Badge */}
-                                    {selectedPurchase['State'] && <StateBadge state={selectedPurchase['State']} />}
-                                </div>
-
-                                {/* Right side: buttons */}
-                                <div className="flex items-center gap-2">
-                                    {canDeletePurchase(selectedPurchase) && (
-                                        <button
-                                            onClick={() => handleDeletePurchase(selectedPurchase)}
-                                            className="p-2 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center transition disabled:opacity-50"
-                                            disabled={savingLoading}
-                                            title="Delete purchase"
-                                        >
-                                            {savingLoading ? <Loader className="animate-spin w-5 h-5" /> : <Trash2 className="w-5 h-5" />}
-                                        </button>
-                                    )}
-
-                                    {canEditPurchase(selectedPurchase) && (
-                                        <>
-                                            {!isEditing ? (
-                                                <button
-                                                    onClick={() => {
-                                                        setIsEditing(true);
-                                                        setEditedPurchase({ ...selectedPurchase });
-                                                    }}
-                                                    disabled={selectedPurchase['S Approver'] && selectedPurchase['M Approver']}
-                                                    className={`p-2 rounded-full transition duration-200 ${
-                                                        selectedPurchase['S Approver'] && selectedPurchase['M Approver']
-                                                            ? 'bg-white/10 text-white/50 cursor-not-allowed'
-                                                            : 'bg-yellow-500 hover:bg-yellow-600 text-white'
-                                                    }`}
-                                                    title={
-                                                        selectedPurchase['S Approver'] && selectedPurchase['M Approver']
-                                                            ? 'Cannot edit after approval'
-                                                            : 'Edit item'
-                                                    }
-                                                >
-                                                    <Pencil className="w-5 h-5" />
-                                                </button>
-                                            ) : (
-                                                <button
-                                                    onClick={() => {
-                                                        setIsEditing(false);
-                                                        setEditedPurchase({});
-                                                    }}
-                                                    className="p-2 rounded-full bg-red-500 hover:bg-red-600 text-white transition duration-200"
-                                                    title="Cancel edit mode"
-                                                >
-                                                    <XCircle className="w-5 h-5" />
-                                                </button>
-                                            )}
-                                        </>
-                                    )}
-
-                                    <button
-                                        onClick={() => {
-                                            setSelectedPurchase(null);
-                                            setIsEditing(false);
-                                        }}
-                                        className="text-white hover:bg-white/20 rounded-lg p-2 transition"
-                                        title="Close"
-                                    >
-                                        <X className="w-6 h-6" />
-                                    </button>
-                                </div>
-                            </div>
-
-
-                            {/* Content */}
-                            <div className="p-6 space-y-6">
-                                {/* Basic Info Grid */}
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="bg-gray-50 p-4 rounded-lg">
-                                        <p className="text-sm text-gray-500 mb-1">Date Requested</p>
-                                        <p className="font-semibold text-gray-800">{formatDate(selectedPurchase['Date Requested'])}</p>
-                                    </div>
-                                    <div className="bg-gray-50 p-4 rounded-lg">
-                                        <p className="text-sm text-gray-500 mb-1">Requester</p>
-                                        <p className="font-semibold text-gray-800">{selectedPurchase['Requester'] || 'N/A'}</p>
-                                    </div>
-                                    <div className="bg-gray-50 p-4 rounded-lg">
-                                        <p className="text-sm text-gray-500 mb-1">Category</p>
-                                        {isEditing ? (
-                                                <select
-                                                    id="category"
-                                                    value={editedPurchase['Category'] || ''}
-                                                    onChange={(e) =>
-                                                        setEditedPurchase((prev) => ({ ...prev, 'Category': e.target.value }))
-                                                    }
-                                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
-                                                >
-                                                    {CATEGORIES.map((category) => (
-                                                        <option key={category} value={category}>
-                                                            {category}
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                        ) : (
-                                            <p className="font-semibold text-gray-800">{selectedPurchase['Category']}</p>
-                                        )}
-                                    </div>
-                                    <div className="bg-gray-50 p-4 rounded-lg">
-                                        <p className="text-sm text-gray-500 mb-1">Quantity</p>
-                                        {isEditing ? (
-                                            <input
-                                                type="text"
-                                                value={editedPurchase['Quantity']}
-                                                onChange={(e) =>
-                                                    setEditedPurchase((prev) => ({ ...prev, 'Quantity': e.target.value }))
-                                                }
-                                                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
-                                            />
-                                        ) : (
-                                            <p className="font-semibold text-gray-800">{selectedPurchase['Quantity']}</p>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Cost Info */}
-                                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                                    <div className="grid grid-cols-3 gap-4">
-                                        <div>
-                                            <p className="text-sm text-blue-700 mb-1">Unit Price</p>
-                                            {isEditing ? (
-                                                <input
-                                                    type="number"
-                                                    value={parseCurrency(editedPurchase['Unit Price']) || '-1'}
-                                                    onChange={(e) =>
-                                                        setEditedPurchase((prev) => ({ ...prev, 'Unit Price': e.target.value }))
-                                                    }
-                                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
-                                                />
-                                            ) : (
-                                                <p className="font-semibold text-gray-800">{formatCurrency(selectedPurchase['Unit Price'])}</p>
-                                            )}
-                                        </div>
-                                        <div>
-                                            <p className="text-sm text-blue-700 mb-1">Shipping</p>
-                                            {isEditing ? (
-                                                <input
-                                                    type="number"
-                                                    value={parseCurrency(editedPurchase['Shipping']) || '0.00'}
-                                                    onChange={(e) =>
-                                                        setEditedPurchase((prev) => ({ ...prev, 'Shipping': e.target.value }))
-                                                    }
-                                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
-                                                />
-                                            ) : (
-                                                <p className="font-semibold text-gray-800">{formatCurrency(selectedPurchase['Shipping'])}</p>
-                                            )}
-                                        </div>
-                                        <div>
-                                            <p className="text-sm text-blue-700 mb-1">Total Cost</p>
-                                            <p className="font-medium">{calculateTotalCost(selectedPurchase)}</p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Item Link */}
-                                {selectedPurchase?.['Item Link'] && selectedPurchase['Item Link'].trim() !== '' && (
-                                    <div>
-                                        <p className="text-sm text-gray-500 mb-2">Item Link</p>
-                                        {isEditing ? (
-                                            <input
-                                                type="text"
-                                                value={editedPurchase['Item Link'] || ''}
-                                                onChange={(e) =>
-                                                    setEditedPurchase((prev) => ({ ...prev, 'Item Link': e.target.value }))
-                                                }
-                                                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
-                                            />
-                                        ) : (
-                                            <a
-                                                href={selectedPurchase['Item Link']}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="text-blue-600 hover:text-blue-700 hover:underline break-all"
-                                            >
-                                                {selectedPurchase['Item Link']}
-                                            </a>
-                                        )}
-                                    </div>
-                                )}
-
-                                {/* Comments */}
-                                {selectedPurchase['Comments'] && (
-                                    <div>
-                                        <p className="text-sm text-gray-500 mb-2">Comments</p>
-                                        <div className="bg-gray-50 p-4 rounded-lg">
-                                            {isEditing ? (
-                                                <input
-                                                    type="text"
-                                                    value={editedPurchase['Comments'] || ''}
-                                                    onChange={(e) =>
-                                                        setEditedPurchase((prev) => ({ ...prev, 'Comments': e.target.value }))
-                                                    }
-                                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
-                                                />
-                                            ) : (
-                                                <p className="font-semibold text-gray-800">{selectedPurchase['Comments']}</p>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Purchase Info */}
-                                {(selectedPurchase['Date Purchased'] || selectedPurchase['Order Number']) && (
-                                    <div className="grid grid-cols-2 gap-4">
-                                        {selectedPurchase['Date Purchased'] && (
-                                            <div>
-                                                <p className="text-sm text-gray-500 mb-1">Date Purchased</p>
-                                                <p className="font-semibold text-gray-800">{formatDate(selectedPurchase['Date Purchased'])}</p>
-                                            </div>
-                                        )}
-                                        {selectedPurchase['Order Number'] && (
-                                            <div>
-                                                <p className="text-sm text-gray-500 mb-1">Order Number</p>
-                                                <p className="font-semibold text-gray-800">{selectedPurchase['Order Number']}</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-
-                                {/* Approvals Section */}
-                                <div className="border-t pt-6">
-                                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Approvals</h3>
-
-                                    {/* Warning if over $2000 */}
-                                    {parseFloat(selectedPurchase['Total Cost']) > 2000 && (
-                                        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4 flex items-start">
-                                            <AlertCircle className="w-5 h-5 text-red-600 mr-3 mt-0.5 flex-shrink-0" />
-                                            <div>
-                                                <p className="font-semibold text-red-800">Cannot Approve</p>
-                                                <p className="text-sm text-red-700">Requests over $2,000 cannot be approved through this system.</p>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Warning if user cannot approve */}
-                                    {!getUserApprovalPermissions().canStudentApprove && !getUserApprovalPermissions().canMentorApprove && (
-                                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4 flex items-start">
-                                            <AlertCircle className="w-5 h-5 text-yellow-600 mr-3 mt-0.5 flex-shrink-0" />
-                                            <div>
-                                                <p className="font-semibold text-yellow-800">No Approval Permissions</p>
-                                                <p className="text-sm text-yellow-700">You are not authorized to approve purchase requests.</p>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Student Approver */}
-                                    <div className="bg-gray-50 p-4 rounded-lg mb-3">
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                <p className="text-sm text-gray-500 mb-1">Student Approver</p>
-                                                {selectedPurchase['S Approver'] ? (
-                                                    <div className="flex items-center justify-between w-full">
-                                                        <div className="flex items-center">
-                                                            <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
-                                                            <p className="font-semibold text-gray-800">{selectedPurchase['S Approver']}</p>
-                                                        </div>
-                                                        {selectedPurchase['S Approver'] === user.name && !inDisallowedState(selectedPurchase) && (
-                                                            <button
-                                                                onClick={() => handleWithdrawApproval(selectedPurchase, 'student')}
-                                                                disabled={approvalLoading}
-                                                                className="ml-4 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition duration-200"
-                                                            >
-                                                                {approvalLoading ? 'Withdrawing...' : 'Withdraw Approval'}
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                ) : (
-                                                    <p className="text-gray-500 italic">Not yet approved</p>
-                                                )}
-                                            </div>
-                                            {!selectedPurchase['S Approver'] && (() => {
-                                                const approval = canApproveRequest(selectedPurchase, 'student');
-                                                return approval.canApprove ? (
-                                                    <button
-                                                        onClick={() => handleApprove(selectedPurchase, 'student')}
-                                                        disabled={approvalLoading}
-                                                        className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition duration-200"
-                                                    >
-                                                        {approvalLoading ? 'Approving...' : 'Approve as Student'}
-                                                    </button>
-                                                ) : null;
-                                            })()}
-                                        </div>
-                                    </div>
-
-                                    {/* Mentor Approver */}
-                                    <div className="bg-gray-50 p-4 rounded-lg">
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                <p className="text-sm text-gray-500 mb-1">Mentor Approver</p>
-                                                {selectedPurchase['M Approver'] ? (
-                                                    <div className="flex items-center justify-between w-full">
-                                                        <div className="flex items-center">
-                                                            <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
-                                                            <p className="font-semibold text-gray-800">{selectedPurchase['M Approver']}</p>
-                                                        </div>
-                                                        {selectedPurchase['M Approver'] === user.name && !inDisallowedState(selectedPurchase) && (
-                                                            <button
-                                                                onClick={() => handleWithdrawApproval(selectedPurchase, 'mentor')}
-                                                                disabled={approvalLoading}
-                                                                className="ml-4 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition duration-200"
-                                                            >
-                                                                {approvalLoading ? 'Withdrawing...' : 'Withdraw Approval'}
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                ) : (
-                                                    <p className="text-gray-500 italic">Not yet approved</p>
-                                                )}
-                                            </div>
-                                            {!selectedPurchase['M Approver'] && (() => {
-                                                const approval = canApproveRequest(selectedPurchase, 'mentor');
-                                                return approval.canApprove ? (
-                                                    <button
-                                                        onClick={() => handleApprove(selectedPurchase, 'mentor')}
-                                                        disabled={approvalLoading}
-                                                        className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition duration-200"
-                                                    >
-                                                        {approvalLoading ? 'Approving...' : 'Approve as Mentor'}
-                                                    </button>
-                                                ) : null;
-                                            })()}
-                                        </div>
-                                        {isEditing && (
-                                            <div className="flex justify-end gap-3 border-t pt-4">
-                                                <button
-                                                    onClick={() => setIsEditing(false)}
-                                                    className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-lg transition duration-200"
-                                                >
-                                                    Cancel
-                                                </button>
-                                                <button
-                                                    onClick={handleSaveEdit}
-                                                    disabled={savingLoading}
-                                                    className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition duration-200"
-                                                >
-                                                    {savingLoading ? 'Saving...' : 'Save Changes'}
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    <PurchaseDetailModal
+                        purchase={selectedPurchase}
+                        user={user}
+                        validation={validation}
+                        onClose={() => setSelectedPurchase(null)}
+                        onUpdate={loadPurchases}
+                    />
                 )}
             </div>
         </div>

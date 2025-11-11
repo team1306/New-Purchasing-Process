@@ -178,14 +178,7 @@ export default function Dashboard({ user, onSignOut }) {
         }
     };
 
-    const getAvailableStateTransitions = (currentState, userName) => {
-        const isLeadership = validation['Presidents']?.includes(userName) || validation['Directors']?.includes(userName);
-
-        if (isLeadership) {
-            // Leadership can change to any state except the current one
-            return STATES.filter(state => state !== currentState);
-        }
-
+    const getAvailableStateTransitions = (currentState) => {
         // Regular users have limited transitions
         const transitions = {
             'Pending Approval': ['On Hold'],
@@ -478,7 +471,7 @@ export default function Dashboard({ user, onSignOut }) {
                                                 </p>
                                             </div>
 
-                                            {/* State Change Dropdown */}
+                                            {/* State Change Buttons */}
                                             {(() => {
                                                 const availableStates = getAvailableStateTransitions(
                                                     purchase['State'],
@@ -486,58 +479,23 @@ export default function Dashboard({ user, onSignOut }) {
                                                 );
 
                                                 if (availableStates.length > 0) {
-                                                    const dropdownId = purchase['Request ID'] || `purchase-${index}`;
-                                                    const isOpen = openDropdownId === dropdownId;
-
                                                     return (
-                                                        <div className="relative">
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    setOpenDropdownId(isOpen ? null : dropdownId);
-                                                                }}
-                                                                className="flex items-center gap-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold transition duration-200 whitespace-nowrap"
-                                                            >
-                                                                Change State
-                                                                <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-                                                            </button>
-
-                                                            {isOpen && (
-                                                                <>
-                                                                    {/* Backdrop to close dropdown */}
-                                                                    <div
-                                                                        className="fixed inset-0 z-10"
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            setOpenDropdownId(null);
-                                                                        }}
-                                                                    />
-
-                                                                    {/* Dropdown menu */}
-                                                                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-200 z-20">
-                                                                        <div className="py-1">
-                                                                            {availableStates.map(state => (
-                                                                                <button
-                                                                                    key={state}
-                                                                                    onClick={(e) => {
-                                                                                        e.stopPropagation();
-                                                                                        if (window.confirm(`Change state to "${state}"?`)) {
-                                                                                            handleStateChange(purchase, state);
-                                                                                        } else {
-                                                                                            setOpenDropdownId(null);
-                                                                                        }
-                                                                                    }}
-                                                                                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition duration-150 flex items-center gap-2"
-                                                                                >
-                                                                                    <span className={`px-2 py-0.5 rounded text-xs font-semibold ${STATE_COLORS[state]}`}>
-                                                                                        {state}
-                                                                                    </span>
-                                                                                </button>
-                                                                            ))}
-                                                                        </div>
-                                                                    </div>
-                                                                </>
-                                                            )}
+                                                        <div className="flex flex-col gap-2">
+                                                            <p className="text-xs text-gray-500 font-medium">Change State:</p>
+                                                            {availableStates.map(state => (
+                                                                <button
+                                                                    key={state}
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        if (window.confirm(`Change state to "${state}"?`)) {
+                                                                            handleStateChange(purchase, state);
+                                                                        }
+                                                                    }}
+                                                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition duration-200 whitespace-nowrap ${STATE_COLORS[state]} hover:opacity-80 hover:shadow-md`}
+                                                                >
+                                                                    → {state}
+                                                                </button>
+                                                            ))}
                                                         </div>
                                                     );
                                                 }

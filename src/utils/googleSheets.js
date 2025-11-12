@@ -159,20 +159,22 @@ export const fetchValidation = async (accessToken) => {
         return {};
     }
 
-    const groups = rows[0]; // First row contains group names
+    // First row contains the column headers (group names)
+    const headers = rows[0];
     const validation = {};
 
     // Initialize each group as an empty array
-    groups.forEach(group => {
-        if (group) validation[group] = [];
+    headers.forEach(header => {
+        if (header) validation[header] = [];
     });
 
-    // Process each person row
+    // Process data rows (starting from row 1, skipping the header row)
     rows.slice(1).forEach(row => {
-        row.forEach((person, index) => {
-            const group = groups[index];
-            if (group && person) {
-                validation[group].push(person);
+        row.forEach((cell, colIndex) => {
+            const groupName = headers[colIndex];
+            // Only add non-empty cells that aren't "Tier 3/4" text
+            if (groupName && cell && cell.trim() !== '' && !cell.includes('Tier')) {
+                validation[groupName].push(cell.trim());
             }
         });
     });

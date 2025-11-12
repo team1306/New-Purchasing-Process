@@ -40,7 +40,7 @@ export default function PurchaseDetailModal({purchase, user, validation, onClose
             permissions.studentApprovalLimit = 500;
         }
 
-        if (validation['Mentor']?.includes(userName)) {
+        if (validation['Mentors']?.includes(userName)) {
             permissions.canMentorApprove = true;
             permissions.mentorApprovalLimit = 500;
         } else if (validation['Directors']?.includes(userName)) {

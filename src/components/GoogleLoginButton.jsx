@@ -17,7 +17,7 @@ const GoogleLoginButton = ({ setUser }) => {
         };
 
         google.accounts.id.initialize({
-            client_id: 'YOUR_CLIENT_ID_HERE',
+            client_id: import.meta.env.VITE_ID,
             callback: handleCredentialResponse,
         });
 

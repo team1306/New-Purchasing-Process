@@ -1,5 +1,5 @@
 const SPREADSHEET_ID = import.meta.env.VITE_SPREADSHEET;
-const API_KEY = import.meta.env.VITE_PICKER_API_KEY;
+const API_KEY = import.meta.env.VITE_PICKER_ID;
 
 // Tab names
 const PURCHASES_TAB = import.meta.env.VITE_PURCHASES_TAB;

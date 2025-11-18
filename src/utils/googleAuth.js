@@ -167,15 +167,24 @@ export const showDrivePicker = () => {
 };
 
 /**
- * Create and show the picker
+ * Create and show the picker with Shared Drive support
  */
 const createPicker = (resolve, reject) => {
-    const view = new window.google.picker.DocsView(window.google.picker.ViewId.SPREADSHEETS)
+    // Create view for regular Drive
+    const docsView = new window.google.picker.DocsView(window.google.picker.ViewId.SPREADSHEETS)
         .setIncludeFolders(true)
         .setSelectFolderEnabled(false);
 
+    // Create view for Shared Drives
+    const sharedDriveView = new window.google.picker.DocsView(window.google.picker.ViewId.SPREADSHEETS)
+        .setIncludeFolders(true)
+        .setSelectFolderEnabled(false)
+        .setEnableDrives(true); // Enable Shared Drives
+
     const picker = new window.google.picker.PickerBuilder()
-        .addView(view)
+        .addView(docsView)
+        .addView(sharedDriveView)
+        .enableFeature(window.google.picker.Feature.SUPPORT_DRIVES) // Critical for Shared Drives
         .setOAuthToken(accessToken)
         .setDeveloperKey(import.meta.env.VITE_PICKER_API_KEY)
         .setCallback(async (data) => {
@@ -184,23 +193,20 @@ const createPicker = (resolve, reject) => {
                 const spreadsheetId = doc.id;
 
                 try {
-                    // Just validate the spreadsheet ID matches - skip API validation
-                    // The picker selection grants access automatically with drive.file scope
+                    // Validate spreadsheet ID matches
                     if (spreadsheetId !== EXPECTED_SPREADSHEET_ID) {
                         throw new Error('Selected spreadsheet does not match the expected purchasing sheet');
                     }
 
+                    // Request explicit permission to access this file
+                    // For Shared Drive files, we need supportsAllDrives parameter
+                    await requestFilePermission(spreadsheetId);
+
                     // Save the selected spreadsheet
                     localStorage.setItem('selected_spreadsheet_id', spreadsheetId);
 
-                    // Optionally try to validate tabs, but don't fail if it doesn't work immediately
-                    try {
-                        await validateSpreadsheetTabs(spreadsheetId);
-                        console.log('Spreadsheet tabs validated successfully');
-                    } catch (validationError) {
-                        console.warn('Tab validation failed, but continuing anyway:', validationError.message);
-                        // Continue anyway - the actual data fetching will validate access
-                    }
+                    // Validate tabs
+                    await validateSpreadsheetTabs(spreadsheetId);
 
                     resolve(spreadsheetId);
                 } catch (err) {
@@ -216,7 +222,68 @@ const createPicker = (resolve, reject) => {
 };
 
 /**
- * Validate that the spreadsheet has the required tabs (optional validation)
+ * Request explicit permission to access the file
+ * Uses Drive API to establish proper access for Shared Drive files
+ */
+const requestFilePermission = async (spreadsheetId) => {
+    const apiKey = import.meta.env.VITE_PICKER_API_KEY;
+
+    console.log('Establishing access to file...');
+
+    // First, try to get file metadata via Drive API to establish access
+    // This "opens" the file with our token
+    try {
+        const driveResponse = await fetch(
+            `https://www.googleapis.com/drive/v3/files/${spreadsheetId}?fields=id,name,mimeType,capabilities&supportsAllDrives=true&key=${apiKey}`,
+            {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json',
+                }
+            }
+        );
+
+        if (driveResponse.ok) {
+            const fileInfo = await driveResponse.json();
+            console.log('File accessed via Drive API:', fileInfo.name);
+
+            // Now wait a moment for the permission to propagate to Sheets API
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
+            // Try accessing via Sheets API
+            const sheetsResponse = await fetch(
+                `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?includeGridData=false&supportsAllDrives=true&key=${apiKey}`,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json',
+                    }
+                }
+            );
+
+            if (sheetsResponse.ok) {
+                console.log('Successfully accessed via Sheets API');
+                return await sheetsResponse.json();
+            }
+
+            const errorText = await sheetsResponse.text();
+            console.error('Sheets API error:', errorText);
+            throw new Error('Drive API succeeded but Sheets API failed. The file may not be properly shared.');
+        }
+
+        const errorText = await driveResponse.text();
+        console.log(driveResponse)
+        console.error('Drive API error:', errorText);
+        throw new Error('Cannot access file via Drive API. Please ensure you have access to this file.');
+
+    } catch (error) {
+        console.error('Permission request failed:', error);
+        throw new Error('Cannot establish access to the file.');
+    }
+};
+
+/**
+ * Validate that the spreadsheet has the required tabs
  */
 const validateSpreadsheetTabs = async (spreadsheetId) => {
     const apiKey = import.meta.env.VITE_PICKER_API_KEY;

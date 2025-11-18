@@ -73,7 +73,7 @@ export default function LoginPage({ onSignIn }) {
                 </button>
 
                 <p className="text-xs text-gray-500 text-center mt-6">
-                    By signing in, you agree to grant this application access to view and manage your Google Drive files and spreadsheets.
+                    By signing in, you agree to grant this application access to view and manage only the specific Google Drive files you select. Note: Shared Drive files may require additional permissions.
                 </p>
             </div>
         </div>

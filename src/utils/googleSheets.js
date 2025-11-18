@@ -16,7 +16,7 @@ const fetchSheetData = async (sheetName, accessToken) => {
         throw new Error('Access token is required but was not provided');
     }
 
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${sheetName}?key=${API_KEY}`;
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(sheetName)}?key=${API_KEY}`;
 
     try {
         const response = await fetch(url, {
@@ -31,7 +31,10 @@ const fetchSheetData = async (sheetName, accessToken) => {
             console.error(`API Error Response:`, errorBody);
 
             if (response.status === 401) {
-                throw new Error(`Authentication failed (401). Please check: 1) Token is valid, 2) Token hasn't expired, 3) Required scopes are included`);
+                throw new Error(`Authentication failed (401). Please sign in again.`);
+            }
+            if (response.status === 404) {
+                throw new Error(`Spreadsheet or sheet "${sheetName}" not found. Make sure you selected the correct file and it has the required tabs.`);
             }
             throw new Error(`HTTP error! status: ${response.status}`);
         }

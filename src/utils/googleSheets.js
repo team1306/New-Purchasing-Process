@@ -1,4 +1,5 @@
 const SPREADSHEET_ID = import.meta.env.VITE_SPREADSHEET;
+const API_KEY = import.meta.env.VITE_PICKER_API_KEY;
 
 // Tab names
 const PURCHASES_TAB = import.meta.env.VITE_PURCHASES_TAB;
@@ -15,7 +16,7 @@ const fetchSheetData = async (sheetName, accessToken) => {
         throw new Error('Access token is required but was not provided');
     }
 
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${sheetName}`;
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${sheetName}?key=${API_KEY}`;
 
     try {
         const response = await fetch(url, {
@@ -30,7 +31,7 @@ const fetchSheetData = async (sheetName, accessToken) => {
             console.error(`API Error Response:`, errorBody);
 
             if (response.status === 401) {
-                throw new Error(`Authentication failed (401). Please check: 1) Token is valid, 2) Token hasn't expired, 3) Required scopes are included (https://www.googleapis.com/auth/spreadsheets)`);
+                throw new Error(`Authentication failed (401). Please check: 1) Token is valid, 2) Token hasn't expired, 3) Required scopes are included`);
             }
             throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -66,7 +67,7 @@ export const deletePurchaseByRequestId = async (requestId, accessToken) => {
         const actualRowIndex = rowIndex + 1; // +1 for header row
 
         // Get sheet ID
-        const sheetInfoUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}?fields=sheets.properties`;
+        const sheetInfoUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}?fields=sheets.properties&key=${API_KEY}`;
         const sheetInfoResp = await fetch(sheetInfoUrl, {
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
@@ -86,7 +87,7 @@ export const deletePurchaseByRequestId = async (requestId, accessToken) => {
         const sheetId = sheet.properties.sheetId;
 
         // Build batchUpdate request
-        const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}:batchUpdate`;
+        const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}:batchUpdate?key=${API_KEY}`;
         const body = {
             requests: [
                 {
@@ -213,7 +214,7 @@ export const fetchAllData = async (accessToken) => {
  */
 export const updatePurchases = async (range, values, accessToken) => {
     const fullRange = `${PURCHASES_TAB}!${range}`;
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${fullRange}?valueInputOption=USER_ENTERED`;
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${fullRange}?valueInputOption=USER_ENTERED&key=${API_KEY}`;
 
     // Convert single value to 2D array format
     const valueArray = Array.isArray(values) ? values : [[values]];

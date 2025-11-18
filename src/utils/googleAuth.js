@@ -1,92 +1,271 @@
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_ID;
+const EXPECTED_SPREADSHEET_ID = import.meta.env.VITE_SPREADSHEET;
 
 let tokenClient;
 let accessToken = null;
+let pickerInited = false;
+let gisInited = false;
 
 /**
- * Initialize Google Sign-In and OAuth2 for Sheets access
+ * Initialize Google OAuth (combines sign-in and Drive access)
  */
-export const initializeGoogleSignIn = (callback, onComplete) => {
+export const initializeGoogleAuth = (onComplete) => {
     // Wait for Google script to load
     const checkGoogleLoaded = setInterval(() => {
-        if (window.google) {
+        if (window.google && window.gapi) {
             clearInterval(checkGoogleLoaded);
 
-            // Initialize Sign-In for authentication
-            window.google.accounts.id.initialize({
-                client_id: GOOGLE_CLIENT_ID,
-                callback: callback,
-                auto_select: true,
-                use_fedcm_for_prompt: true,
-            });
-
-            // Initialize OAuth2 token client for Sheets API access
+            // Initialize OAuth2 token client with drive.file scope only
+            // This scope only grants access to files the app creates or that the user explicitly selects
             tokenClient = window.google.accounts.oauth2.initTokenClient({
                 client_id: GOOGLE_CLIENT_ID,
-                scope: 'https://www.googleapis.com/auth/spreadsheets',
+                scope: 'https://www.googleapis.com/auth/drive.file openid email profile',
                 callback: (tokenResponse) => {
                     if (tokenResponse.access_token) {
                         accessToken = tokenResponse.access_token;
-                        // Save token to localStorage for auto-login
-                        localStorage.setItem('sheets_access_token', accessToken);
-                        localStorage.setItem('sheets_token_expiry', Date.now() + (tokenResponse.expires_in * 1000));
+                        // Save token to localStorage
+                        localStorage.setItem('drive_access_token', accessToken);
+                        localStorage.setItem('drive_token_expiry', Date.now() + (tokenResponse.expires_in * 1000));
                     }
                 },
             });
 
-            // Check for saved token
-            const savedToken = localStorage.getItem('sheets_access_token');
-            const tokenExpiry = localStorage.getItem('sheets_token_expiry');
+            gisInited = true;
 
-            if (savedToken && tokenExpiry && Date.now() < parseInt(tokenExpiry)) {
-                // Token is still valid
-                accessToken = savedToken;
-            }
-
-            // Try to prompt automatic sign-in
-            window.google.accounts.id.prompt((notification) => {
-                if (onComplete) onComplete();
+            // Load picker API
+            window.gapi.load('picker', () => {
+                pickerInited = true;
             });
+
+            if (onComplete) onComplete();
         }
     }, 100);
 };
 
 /**
- * Request Sheets API access token
- * Will prompt user for permission if needed
+ * Request OAuth access (sign in and get Drive permissions in one step)
  */
-export const requestSheetsAccess = () => {
+export const requestOAuthAccess = () => {
     return new Promise((resolve, reject) => {
-        // Check if we have a valid saved token
-        const savedToken = localStorage.getItem('sheets_access_token');
-        const tokenExpiry = localStorage.getItem('sheets_token_expiry');
-
-        if (savedToken && tokenExpiry && Date.now() < parseInt(tokenExpiry)) {
-            accessToken = savedToken;
-            resolve(accessToken);
-            return;
-        }
-
         if (!tokenClient) {
-            reject(new Error('Token client not initialized'));
+            reject(new Error('OAuth client not initialized'));
             return;
         }
 
         tokenClient.callback = (tokenResponse) => {
             if (tokenResponse.error) {
-                reject(tokenResponse);
+                reject(new Error(`OAuth error: ${tokenResponse.error}`));
                 return;
             }
-            accessToken = tokenResponse.access_token;
-            // Save token
-            localStorage.setItem('sheets_access_token', accessToken);
-            localStorage.setItem('sheets_token_expiry', Date.now() + (tokenResponse.expires_in * 1000));
-            resolve(accessToken);
+
+            // Extract user info from ID token if available
+            if (tokenResponse.id_token) {
+                const userInfo = parseJwt(tokenResponse.id_token);
+                accessToken = tokenResponse.access_token;
+                localStorage.setItem('drive_access_token', accessToken);
+                localStorage.setItem('drive_token_expiry', Date.now() + (tokenResponse.expires_in * 1000));
+
+                resolve({
+                    accessToken,
+                    user: {
+                        name: userInfo.name,
+                        email: userInfo.email,
+                        picture: userInfo.picture
+                    }
+                });
+            } else {
+                // Fallback: just return access token
+                accessToken = tokenResponse.access_token;
+                localStorage.setItem('drive_access_token', accessToken);
+                localStorage.setItem('drive_token_expiry', Date.now() + (tokenResponse.expires_in * 1000));
+
+                // Fetch user info separately
+                fetchUserInfo(accessToken)
+                    .then(user => resolve({ accessToken, user }))
+                    .catch(() => resolve({ accessToken, user: null }));
+            }
         };
 
-        // Request token with prompt='' to avoid showing consent screen if already granted
-        tokenClient.requestAccessToken({ prompt: '' });
+        // Request access token with prompt
+        try {
+            tokenClient.requestAccessToken({ prompt: 'consent' });
+        } catch (err) {
+            reject(new Error('Failed to request access token'));
+        }
     });
+};
+
+/**
+ * Fetch user info from Google API
+ */
+const fetchUserInfo = async (token) => {
+    const response = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    });
+
+    if (!response.ok) {
+        throw new Error('Failed to fetch user info');
+    }
+
+    const data = await response.json();
+    return {
+        name: data.name,
+        email: data.email,
+        picture: data.picture
+    };
+};
+
+/**
+ * Check if we have a valid saved session
+ */
+export const hasValidSession = () => {
+    const savedToken = localStorage.getItem('drive_access_token');
+    const tokenExpiry = localStorage.getItem('drive_token_expiry');
+
+    return savedToken && tokenExpiry && Date.now() < parseInt(tokenExpiry);
+};
+
+/**
+ * Get saved access token and user info
+ */
+export const getSavedSession = async () => {
+    if (!hasValidSession()) {
+        return null;
+    }
+
+    const savedToken = localStorage.getItem('drive_access_token');
+    accessToken = savedToken;
+
+    try {
+        const user = await fetchUserInfo(savedToken);
+        return { accessToken: savedToken, user };
+    } catch (err) {
+        console.error('Failed to fetch user info:', err);
+        return { accessToken: savedToken, user: null };
+    }
+};
+
+/**
+ * Show Google Drive Picker to select spreadsheet
+ */
+export const showDrivePicker = () => {
+    return new Promise((resolve, reject) => {
+        if (!pickerInited || !gisInited) {
+            reject(new Error('Google Picker not initialized'));
+            return;
+        }
+
+        if (!accessToken) {
+            reject(new Error('No access token available'));
+            return;
+        }
+
+        createPicker(resolve, reject);
+    });
+};
+
+/**
+ * Create and show the picker
+ */
+const createPicker = (resolve, reject) => {
+    const view = new window.google.picker.DocsView(window.google.picker.ViewId.SPREADSHEETS)
+        .setIncludeFolders(true)
+        .setSelectFolderEnabled(false);
+
+    const picker = new window.google.picker.PickerBuilder()
+        .addView(view)
+        .setOAuthToken(accessToken)
+        .setDeveloperKey(import.meta.env.VITE_PICKER_API_KEY)
+        .setCallback(async (data) => {
+            if (data.action === window.google.picker.Action.PICKED) {
+                const doc = data.docs[0];
+                const spreadsheetId = doc.id;
+
+                try {
+                    // Just validate the spreadsheet ID matches - skip API validation
+                    // The picker selection grants access automatically with drive.file scope
+                    if (spreadsheetId !== EXPECTED_SPREADSHEET_ID) {
+                        throw new Error('Selected spreadsheet does not match the expected purchasing sheet');
+                    }
+
+                    // Save the selected spreadsheet
+                    localStorage.setItem('selected_spreadsheet_id', spreadsheetId);
+
+                    // Optionally try to validate tabs, but don't fail if it doesn't work immediately
+                    try {
+                        await validateSpreadsheetTabs(spreadsheetId);
+                        console.log('Spreadsheet tabs validated successfully');
+                    } catch (validationError) {
+                        console.warn('Tab validation failed, but continuing anyway:', validationError.message);
+                        // Continue anyway - the actual data fetching will validate access
+                    }
+
+                    resolve(spreadsheetId);
+                } catch (err) {
+                    reject(new Error(`Invalid spreadsheet: ${err.message}`));
+                }
+            } else if (data.action === window.google.picker.Action.CANCEL) {
+                reject(new Error('Picker cancelled'));
+            }
+        })
+        .build();
+
+    picker.setVisible(true);
+};
+
+/**
+ * Validate that the spreadsheet has the required tabs (optional validation)
+ */
+const validateSpreadsheetTabs = async (spreadsheetId) => {
+    const apiKey = import.meta.env.VITE_PICKER_API_KEY;
+
+    // Small delay to let permission propagate
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    const response = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties&key=${apiKey}`,
+        {
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+            }
+        }
+    );
+
+    if (!response.ok) {
+        throw new Error(`Cannot access spreadsheet (${response.status})`);
+    }
+
+    const data = await response.json();
+
+    // Validate that required tabs exist
+    if (!data.sheets || data.sheets.length === 0) {
+        throw new Error('Spreadsheet has no sheets');
+    }
+
+    const sheetTitles = data.sheets.map(sheet => sheet.properties.title);
+    const purchasesTab = import.meta.env.VITE_PURCHASES_TAB;
+    const validationTab = import.meta.env.VITE_VALIDATION_TAB;
+
+    if (!sheetTitles.includes(purchasesTab)) {
+        throw new Error(`Spreadsheet is missing the required "${purchasesTab}" tab`);
+    }
+
+    if (!sheetTitles.includes(validationTab)) {
+        throw new Error(`Spreadsheet is missing the required "${validationTab}" tab`);
+    }
+
+    return true;
+};
+
+/**
+ * Check if user has already selected and validated a spreadsheet
+ */
+export const hasValidSpreadsheet = () => {
+    const savedSpreadsheetId = localStorage.getItem('selected_spreadsheet_id');
+    return savedSpreadsheetId === EXPECTED_SPREADSHEET_ID;
 };
 
 /**
@@ -94,8 +273,8 @@ export const requestSheetsAccess = () => {
  */
 export const getAccessToken = () => {
     // Check if saved token is still valid
-    const savedToken = localStorage.getItem('sheets_access_token');
-    const tokenExpiry = localStorage.getItem('sheets_token_expiry');
+    const savedToken = localStorage.getItem('drive_access_token');
+    const tokenExpiry = localStorage.getItem('drive_token_expiry');
 
     if (savedToken && tokenExpiry && Date.now() < parseInt(tokenExpiry)) {
         return savedToken;
@@ -106,17 +285,20 @@ export const getAccessToken = () => {
 
 export const getRefreshedAccessToken = async () => {
     let token = getAccessToken();
-    if (!token) token = await requestSheetsAccess();
+    if (!token) {
+        throw new Error('No valid access token. Please sign in again.');
+    }
     return token;
 }
 
 /**
- * Clear saved tokens on sign out
+ * Clear saved tokens and spreadsheet selection on sign out
  */
 export const clearTokens = () => {
     accessToken = null;
-    localStorage.removeItem('sheets_access_token');
-    localStorage.removeItem('sheets_token_expiry');
+    localStorage.removeItem('drive_access_token');
+    localStorage.removeItem('drive_token_expiry');
+    localStorage.removeItem('selected_spreadsheet_id');
 };
 
 export const parseJwt = (token) => {

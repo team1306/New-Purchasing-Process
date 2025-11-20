@@ -1,5 +1,4 @@
-
-import { Calendar, User, Package, DollarSign, Truck } from 'lucide-react';
+import { Calendar, User, Package, DollarSign, Truck, Box } from 'lucide-react';
 import StateBadge from '../StateBadge';
 import { formatDate, formatCurrency, calculateTotalCost, getAvailableStateTransitions, STATE_COLORS } from '../../utils/purchaseHelpers';
 
@@ -19,21 +18,23 @@ export default function PurchaseCard({
     const availableStates = getAvailableStateTransitions(purchase['State']);
 
     return (
-        <div className="p-6 hover:bg-gray-50 transition duration-150">
-            <div className="flex justify-between items-start">
-                <div
-                    className="flex-1 cursor-pointer"
-                    onClick={() => onClick(purchase)}
-                >
-                    <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-lg font-semibold text-gray-800">
+        <div className="p-4 md:p-6 hover:bg-gray-50 transition duration-150 border-b">
+            <div className="flex flex-col md:flex-row justify-between items-start gap-4">
+
+                {/* LEFT SECTION (Main Details) */}
+                <div className="flex-1 cursor-pointer" onClick={() => onClick(purchase)}>
+
+                    {/* Title + State */}
+                    <div className="flex items-center gap-3 mb-2 flex-wrap">
+                        <h3 className="text-base md:text-lg font-semibold text-gray-800">
                             {purchase['Item Description'] || 'No description'}
                         </h3>
                         {purchase['State'] && <StateBadge state={purchase['State']} />}
                     </div>
 
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3">
-                        <div className="flex items-center text-sm text-gray-600">
+                    {/* Info Grid: Collapses to 1 column mobile */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mt-3 text-sm">
+                        <div className="flex items-center text-gray-600">
                             <Calendar className="w-4 h-4 mr-2 text-gray-400" />
                             <div>
                                 <p className="text-xs text-gray-500">Requested</p>
@@ -41,15 +42,17 @@ export default function PurchaseCard({
                             </div>
                         </div>
 
-                        <div className="flex items-center text-sm text-gray-600">
+                        <div className="flex items-center text-gray-600">
                             <User className="w-4 h-4 mr-2 text-gray-400" />
                             <div>
                                 <p className="text-xs text-gray-500">Requester</p>
-                                <p className="font-medium">{purchase['Requester'] || 'N/A'}</p>
+                                <p className="font-medium truncate max-w-[150px] sm:max-w-none">
+                                    {purchase['Requester'] || 'N/A'}
+                                </p>
                             </div>
                         </div>
 
-                        <div className="flex items-center text-sm text-gray-600">
+                        <div className="flex items-center text-gray-600">
                             <Package className="w-4 h-4 mr-2 text-gray-400" />
                             <div>
                                 <p className="text-xs text-gray-500">Category</p>
@@ -57,7 +60,7 @@ export default function PurchaseCard({
                             </div>
                         </div>
 
-                        <div className="flex items-center text-sm text-gray-600">
+                        <div className="flex items-center text-gray-600">
                             <DollarSign className="w-4 h-4 mr-2 text-gray-400" />
                             <div>
                                 <p className="text-xs text-gray-500">Total Cost</p>
@@ -66,8 +69,19 @@ export default function PurchaseCard({
                         </div>
                     </div>
 
+                    {/* Package Size */}
+                    {purchase['Package Size'] && (
+                        <div className="flex items-center text-sm text-gray-600 mt-3">
+                            <Box className="w-4 h-4 mr-2 text-gray-400" />
+                            <div>
+                                <p className="text-xs text-gray-500">Package Size</p>
+                                <p className="font-medium">{purchase['Package Size']}</p>
+                            </div>
+                        </div>
+                    )}
+
                     {purchase['Comments'] && (
-                        <p className="mt-3 text-sm text-gray-600 italic">
+                        <p className="mt-3 text-sm text-gray-600 italic break-words">
                             {purchase['Comments']}
                         </p>
                     )}
@@ -85,17 +99,21 @@ export default function PurchaseCard({
                     )}
                 </div>
 
-                <div className="ml-4 text-right flex flex-col items-end gap-3">
-                    <div>
-                        <p className="text-sm text-gray-500">Request ID</p>
+
+                {/* RIGHT SECTION (ID + Actions) — Moves below on mobile */}
+                <div className="flex flex-col items-end md:items-end gap-3 w-full md:w-auto border-t pt-3 md:border-none md:pt-0">
+
+                    {/* Request ID */}
+                    <div className="text-right w-full md:w-auto">
+                        <p className="text-xs text-gray-500">Request ID</p>
                         <p className="font-mono text-sm font-semibold text-gray-700">
                             {purchase['Request ID'] || `REQ-${index + 1}`}
                         </p>
                     </div>
 
-                    {/* Shipping Edit Section - Only for Directors */}
+                    {/* Shipping Editing (Director Only) */}
                     {isDirector && (
-                        <div className="border-t pt-3">
+                        <div className="border-t pt-3 w-full md:w-auto">
                             {editingShipping === purchase['Request ID'] ? (
                                 <div className="flex flex-col gap-2">
                                     <p className="text-xs text-gray-500 font-medium">Edit Shipping:</p>
@@ -108,11 +126,11 @@ export default function PurchaseCard({
                                             value={shippingValue}
                                             onChange={(e) => onShippingValueChange(e.target.value)}
                                             onClick={(e) => e.stopPropagation()}
-                                            className="w-24 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            className="w-20 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                             autoFocus
                                         />
                                     </div>
-                                    <div className="flex gap-2">
+                                    <div className="flex gap-2 flex-wrap">
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
@@ -156,24 +174,26 @@ export default function PurchaseCard({
                         </div>
                     )}
 
-                    {/* State Change Buttons */}
+                    {/* State Change Buttons (wrap on mobile) */}
                     {availableStates.length > 0 && (
-                        <div className="flex flex-col gap-2 border-t pt-3">
+                        <div className="flex flex-col gap-2 border-t pt-3 w-full md:w-auto">
                             <p className="text-xs text-gray-500 font-medium">Change State:</p>
-                            {availableStates.map(state => (
-                                <button
-                                    key={state}
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (window.confirm(`Change state to "${state}"?`)) {
-                                            onStateChange(purchase, state);
-                                        }
-                                    }}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition duration-200 whitespace-nowrap ${STATE_COLORS[state]} hover:opacity-80 hover:shadow-md`}
-                                >
-                                    → {state}
-                                </button>
-                            ))}
+                            <div className="flex flex-wrap gap-2">
+                                {availableStates.map(state => (
+                                    <button
+                                        key={state}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (window.confirm(`Change state to "${state}"?`)) {
+                                                onStateChange(purchase, state);
+                                            }
+                                        }}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition duration-200 whitespace-nowrap ${STATE_COLORS[state]} hover:opacity-80 hover:shadow-md`}
+                                    >
+                                        → {state}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     )}
                 </div>

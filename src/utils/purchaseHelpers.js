@@ -1,4 +1,3 @@
-
 export const CATEGORIES = [
     'Robot',
     'Inventory',
@@ -56,6 +55,12 @@ export const calculateTotalCost = (purchase) => {
     const shipping = parseCurrency(purchase['Shipping']) ?? 0;
     const cost = (itemPrice * quantity) + shipping;
     return formatCurrency(cost);
+};
+
+export const getRequestTier = (totalCost) => {
+    if (totalCost <= 500) return 'tier1';
+    if (totalCost <= 2000) return 'tier2';
+    return 'tier3';
 };
 
 export const getAvailableStateTransitions = (currentState) => {

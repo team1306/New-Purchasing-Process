@@ -24,9 +24,9 @@ export const CATEGORIES = [
 export const STATES = [
     'Pending Approval',
     'Approved',
-    'Received',
-    'Purchased',
     'On Hold',
+    'Purchased',
+    'Received',
     'Completed'
 ];
 
@@ -87,8 +87,30 @@ export default function Dashboard({ user, onSignOut }) {
     const [filteredPurchases, setFilteredPurchases] = useState([]);
     const [validation, setValidation] = useState({});
     const [searchQuery, setSearchQuery] = useState('');
-    const [selectedCategories, setSelectedCategories] = useState([]);
-    const [selectedStates, setSelectedStates] = useState([]);
+    const [selectedCategories, setSelectedCategories] = useState(() => {
+        const saved = localStorage.getItem('filter_categories');
+        try {
+            return saved ? JSON.parse(saved) : [];
+        } catch {
+            return [];
+        }
+    });
+    const [selectedStates, setSelectedStates] = useState(() => {
+        const saved = localStorage.getItem('filter_states');
+        try {
+            return saved ? JSON.parse(saved) : [];
+        } catch {
+            return [];
+        }
+    });
+    const [needsApprovalFilter, setNeedsApprovalFilter] = useState(() => {
+        const saved = localStorage.getItem('filter_needs_approval');
+        return saved === 'true';
+    });
+    const [sortOption, setSortOption] = useState(() => {
+        const saved = localStorage.getItem('sort_option');
+        return saved || 'newest';
+    });
     const [selectedPurchase, setSelectedPurchase] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -97,12 +119,30 @@ export default function Dashboard({ user, onSignOut }) {
     const [editingShipping, setEditingShipping] = useState(null);
     const [shippingValue, setShippingValue] = useState('');
 
+    // Load purchases on mount
     useEffect(() => {
         loadPurchases();
     }, []);
 
+    // Save filters and sort to localStorage whenever they change
     useEffect(() => {
-        // Filter purchases based on search query, categories, and states
+        localStorage.setItem('filter_categories', JSON.stringify(selectedCategories));
+    }, [selectedCategories]);
+
+    useEffect(() => {
+        localStorage.setItem('filter_states', JSON.stringify(selectedStates));
+    }, [selectedStates]);
+
+    useEffect(() => {
+        localStorage.setItem('filter_needs_approval', needsApprovalFilter.toString());
+    }, [needsApprovalFilter]);
+
+    useEffect(() => {
+        localStorage.setItem('sort_option', sortOption);
+    }, [sortOption]);
+
+    useEffect(() => {
+        // Filter and sort purchases
         let filtered = purchases;
 
         // Filter by search query
@@ -126,8 +166,38 @@ export default function Dashboard({ user, onSignOut }) {
             );
         }
 
-        setFilteredPurchases(filtered);
-    }, [searchQuery, selectedCategories, selectedStates, purchases]);
+        // Filter by needs approval
+        if (needsApprovalFilter) {
+            const isMentorOrDirector = validation['Mentors']?.includes(user.name) || validation['Directors']?.includes(user.name);
+            const isPresidentOrLeadership = validation['Presidents']?.includes(user.name) || validation['Leadership']?.includes(user.name);
+
+            if (isMentorOrDirector) {
+                // Show items missing mentor approval
+                filtered = filtered.filter(purchase => !purchase['M Approver'] || purchase['M Approver'].trim() === '');
+            } else if (isPresidentOrLeadership) {
+                // Show items missing student approval
+                filtered = filtered.filter(purchase => !purchase['S Approver'] || purchase['S Approver'].trim() === '');
+            }
+        }
+
+        // Apply sorting
+        const sorted = [...filtered].sort((a, b) => {
+            switch (sortOption) {
+                case 'newest':
+                    return new Date(b['Date Requested']) - new Date(a['Date Requested']);
+                case 'oldest':
+                    return new Date(a['Date Requested']) - new Date(b['Date Requested']);
+                case 'name-asc':
+                    return (a['Item Description'] || '').localeCompare(b['Item Description'] || '');
+                case 'name-desc':
+                    return (b['Item Description'] || '').localeCompare(a['Item Description'] || '');
+                default:
+                    return new Date(b['Date Requested']) - new Date(a['Date Requested']);
+            }
+        });
+
+        setFilteredPurchases(sorted);
+    }, [searchQuery, selectedCategories, selectedStates, needsApprovalFilter, sortOption, purchases, validation, user.name]);
 
     const loadPurchases = async () => {
         try {
@@ -149,20 +219,12 @@ export default function Dashboard({ user, onSignOut }) {
                 fetchValidation(await getRefreshedAccessToken()),
             ]);
 
-            // Sort by Date Requested (most recent first)
-            const sorted = purchasesData.sort((a, b) => {
-                const dateA = new Date(a['Date Requested']);
-                const dateB = new Date(b['Date Requested']);
-                return dateB - dateA;
-            });
-
-            setPurchases(sorted);
-            setFilteredPurchases(sorted);
+            setPurchases(purchasesData);
             setValidation(validationData);
 
             // Update the selected purchase with fresh data if modal is open
             if (selectedPurchase) {
-                const updatedPurchase = sorted.find(
+                const updatedPurchase = purchasesData.find(
                     p => p['Request ID'] === selectedPurchase['Request ID']
                 );
                 if (updatedPurchase) {
@@ -259,9 +321,25 @@ export default function Dashboard({ user, onSignOut }) {
         setSelectedCategories([]);
         setSelectedStates([]);
         setSearchQuery('');
+        setNeedsApprovalFilter(false);
+        setSortOption('newest');
     };
 
-    const activeFilterCount = selectedCategories.length + selectedStates.length;
+    const activeFilterCount = selectedCategories.length + selectedStates.length + (needsApprovalFilter ? 1 : 0);
+
+    // Check if user can see the needs approval filter
+    const canSeeNeedsApprovalFilter = () => {
+        return validation['Mentors']?.includes(user.name) ||
+            validation['Directors']?.includes(user.name) ||
+            validation['Presidents']?.includes(user.name) ||
+            validation['Leadership']?.includes(user.name);
+    };
+
+    // Get the approval filter label
+    const getApprovalFilterLabel = () => {
+        const isMentorOrDirector = validation['Mentors']?.includes(user.name) || validation['Directors']?.includes(user.name);
+        return isMentorOrDirector ? 'Needs Mentor Approval' : 'Needs Student Approval';
+    };
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
@@ -341,22 +419,36 @@ export default function Dashboard({ user, onSignOut }) {
                         <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center gap-2">
                                 <Filter className="w-5 h-5 text-gray-600" />
-                                <h3 className="font-semibold text-gray-800">Filters</h3>
+                                <h3 className="font-semibold text-gray-800">Filters & Sorting</h3>
                                 {activeFilterCount > 0 && (
                                     <span className="bg-blue-600 text-white text-xs font-semibold px-2 py-1 rounded-full">
                                         {activeFilterCount}
                                     </span>
                                 )}
                             </div>
-                            {activeFilterCount > 0 && (
-                                <button
-                                    onClick={clearAllFilters}
-                                    className="text-sm text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1"
+                            <div className="flex items-center gap-3">
+                                {/* Sort Dropdown */}
+                                <select
+                                    value={sortOption}
+                                    onChange={(e) => setSortOption(e.target.value)}
+                                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:border-blue-400 focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
                                 >
-                                    <X className="w-4 h-4" />
-                                    Clear All
-                                </button>
-                            )}
+                                    <option value="newest">Newest First</option>
+                                    <option value="oldest">Oldest First</option>
+                                    <option value="name-asc">Name (A-Z)</option>
+                                    <option value="name-desc">Name (Z-A)</option>
+                                </select>
+
+                                {activeFilterCount > 0 && (
+                                    <button
+                                        onClick={clearAllFilters}
+                                        className="text-sm text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1"
+                                    >
+                                        <X className="w-4 h-4" />
+                                        Clear All
+                                    </button>
+                                )}
+                            </div>
                         </div>
 
                         {/* Category Filters */}
@@ -380,7 +472,7 @@ export default function Dashboard({ user, onSignOut }) {
                         </div>
 
                         {/* State Filters */}
-                        <div>
+                        <div className="mb-4">
                             <p className="text-sm font-medium text-gray-700 mb-2">State</p>
                             <div className="flex flex-wrap gap-2">
                                 {STATES.map(state => (
@@ -398,6 +490,23 @@ export default function Dashboard({ user, onSignOut }) {
                                 ))}
                             </div>
                         </div>
+
+                        {/* Needs Approval Filter */}
+                        {canSeeNeedsApprovalFilter() && (
+                            <div>
+                                <p className="text-sm font-medium text-gray-700 mb-2">Approval Status</p>
+                                <button
+                                    onClick={() => setNeedsApprovalFilter(!needsApprovalFilter)}
+                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition duration-200 ${
+                                        needsApprovalFilter
+                                            ? 'bg-orange-600 text-white shadow-md'
+                                            : 'bg-white text-gray-700 border border-gray-300 hover:border-orange-400'
+                                    }`}
+                                >
+                                    {getApprovalFilterLabel()}
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
 

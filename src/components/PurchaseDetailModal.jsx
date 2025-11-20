@@ -1,17 +1,18 @@
-import {useEffect, useState} from 'react';
-import { X, CheckCircle, AlertCircle, XCircle, Pencil, Trash2, Loader} from 'lucide-react';
-import {getRefreshedAccessToken} from '../utils/googleAuth';
-import { updatePurchaseByRequestId, deletePurchaseByRequestId } from '../utils/googleSheets';
+
+import { useEffect, useState } from 'react';
+import { X, CheckCircle, AlertCircle, XCircle, Pencil, Trash2, Loader } from 'lucide-react';
+import { getRefreshedAccessToken } from '../utils/googleAuth.js';
+import { updatePurchaseByRequestId, deletePurchaseByRequestId } from '../utils/googleSheets.js';
 import {
     calculateTotalCost,
-    CATEGORIES,
     formatCurrency,
     formatDate,
     parseCurrency,
-    StateBadge
-} from "./DashboardPage.jsx";
+} from '../utils/purchaseHelpers.js';
+import { CATEGORIES } from '../utils/purchaseHelpers.js';
+import StateBadge from './StateBadge';
 
-export default function PurchaseDetailModal({purchase, user, validation, onClose, onUpdate}) {
+export default function PurchaseDetailModal({ purchase, user, validation, onClose, onUpdate }) {
     const [isEditing, setIsEditing] = useState(false);
     const [editedPurchase, setEditedPurchase] = useState({});
     const [approvalLoading, setApprovalLoading] = useState(false);
@@ -57,7 +58,7 @@ export default function PurchaseDetailModal({purchase, user, validation, onClose
     };
 
     const canApproveRequest = (purchase, approvalType) => {
-        const totalCost = parseFloat(purchase['Total Cost']) || 0;
+        const totalCost = parseFloat(calculateTotalCost(purchase).replace(/[^0-9.-]+/g, '')) || 0;
 
         if (inDisallowedState(purchase)) {
             return { canApprove: false, reason: 'Already approved' };
@@ -67,7 +68,7 @@ export default function PurchaseDetailModal({purchase, user, validation, onClose
             return { canApprove: false, reason: 'Requests over $2,000 cannot be approved' };
         }
 
-        if (user.name === purchase['Requestor']) {
+        if (user.name === purchase['Requester']) {
             return { canApprove: false, reason: 'Requestor' };
         }
 
@@ -182,6 +183,8 @@ export default function PurchaseDetailModal({purchase, user, validation, onClose
             setSavingLoading(false);
         }
     };
+
+    const totalCost = parseFloat(calculateTotalCost(purchase).replace(/[^0-9.-]+/g, '')) || 0;
 
     return (
         <div
@@ -321,7 +324,7 @@ export default function PurchaseDetailModal({purchase, user, validation, onClose
                                 {isEditing ? (
                                     <input
                                         type="number"
-                                        value={parseCurrency(editedPurchase['Unit Price']) || '-1'}
+                                        value={parseCurrency(editedPurchase['Unit Price']) || '0'}
                                         onChange={(e) =>
                                             setEditedPurchase((prev) => ({ ...prev, 'Unit Price': e.target.value }))
                                         }
@@ -336,7 +339,7 @@ export default function PurchaseDetailModal({purchase, user, validation, onClose
                                 {isEditing ? (
                                     <input
                                         type="number"
-                                        value={parseCurrency(editedPurchase['Shipping']) || '0.00'}
+                                        value={parseCurrency(editedPurchase['Shipping']) || '0'}
                                         onChange={(e) =>
                                             setEditedPurchase((prev) => ({ ...prev, 'Shipping': e.target.value }))
                                         }
@@ -348,13 +351,13 @@ export default function PurchaseDetailModal({purchase, user, validation, onClose
                             </div>
                             <div>
                                 <p className="text-sm text-blue-700 mb-1">Total Cost</p>
-                                <p className="font-medium">{calculateTotalCost(purchase)}</p>
+                                <p className="font-semibold text-gray-800">{calculateTotalCost(purchase)}</p>
                             </div>
                         </div>
                     </div>
 
                     {/* Item Link */}
-                    {purchase?.['Item Link'] && purchase['Item Link'].trim() !== '' && (
+                    {(purchase?.['Item Link'] || isEditing) && (
                         <div>
                             <p className="text-sm text-gray-500 mb-2">Item Link</p>
                             {isEditing ? (
@@ -366,7 +369,7 @@ export default function PurchaseDetailModal({purchase, user, validation, onClose
                                     }
                                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
                                 />
-                            ) : (
+                            ) : purchase['Item Link']?.trim() !== '' ? (
                                 <a
                                     href={purchase['Item Link']}
                                     target="_blank"
@@ -375,26 +378,26 @@ export default function PurchaseDetailModal({purchase, user, validation, onClose
                                 >
                                     {purchase['Item Link']}
                                 </a>
-                            )}
+                            ) : null}
                         </div>
                     )}
 
                     {/* Comments */}
-                    {purchase['Comments'] && (
+                    {(purchase['Comments'] || isEditing) && (
                         <div>
                             <p className="text-sm text-gray-500 mb-2">Comments</p>
                             <div className="bg-gray-50 p-4 rounded-lg">
                                 {isEditing ? (
-                                    <input
-                                        type="text"
+                                    <textarea
                                         value={editedPurchase['Comments'] || ''}
                                         onChange={(e) =>
                                             setEditedPurchase((prev) => ({ ...prev, 'Comments': e.target.value }))
                                         }
                                         className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
+                                        rows={3}
                                     />
                                 ) : (
-                                    <p className="font-semibold text-gray-800">{purchase['Comments']}</p>
+                                    <p className="text-gray-800">{purchase['Comments']}</p>
                                 )}
                             </div>
                         </div>
@@ -423,7 +426,7 @@ export default function PurchaseDetailModal({purchase, user, validation, onClose
                         <h3 className="text-lg font-semibold text-gray-800 mb-4">Approvals</h3>
 
                         {/* Warning if over $2000 */}
-                        {parseFloat(purchase['Total Cost']) > 2000 && (
+                        {totalCost > 2000 && (
                             <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4 flex items-start">
                                 <AlertCircle className="w-5 h-5 text-red-600 mr-3 mt-0.5 flex-shrink-0" />
                                 <div>
@@ -447,7 +450,7 @@ export default function PurchaseDetailModal({purchase, user, validation, onClose
                         {/* Student Approver */}
                         <div className="bg-gray-50 p-4 rounded-lg mb-3">
                             <div className="flex items-center justify-between">
-                                <div>
+                                <div className="flex-1">
                                     <p className="text-sm text-gray-500 mb-1">Student Approver</p>
                                     {purchase['S Approver'] ? (
                                         <div className="flex items-center justify-between w-full">
@@ -487,7 +490,7 @@ export default function PurchaseDetailModal({purchase, user, validation, onClose
                         {/* Mentor Approver */}
                         <div className="bg-gray-50 p-4 rounded-lg">
                             <div className="flex items-center justify-between">
-                                <div>
+                                <div className="flex-1">
                                     <p className="text-sm text-gray-500 mb-1">Mentor Approver</p>
                                     {purchase['M Approver'] ? (
                                         <div className="flex items-center justify-between w-full">
@@ -522,24 +525,26 @@ export default function PurchaseDetailModal({purchase, user, validation, onClose
                                     ) : null;
                                 })()}
                             </div>
-                            {isEditing && (
-                                <div className="flex justify-end gap-3 border-t pt-4 mt-4">
-                                    <button
-                                        onClick={() => setIsEditing(false)}
-                                        className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-lg transition duration-200"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        onClick={handleSaveEdit}
-                                        disabled={savingLoading}
-                                        className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition duration-200"
-                                    >
-                                        {savingLoading ? 'Saving...' : 'Save Changes'}
-                                    </button>
-                                </div>
-                            )}
                         </div>
+
+                        {/* Edit Mode Save/Cancel Buttons */}
+                        {isEditing && (
+                            <div className="flex justify-end gap-3 border-t pt-4 mt-4">
+                                <button
+                                    onClick={() => setIsEditing(false)}
+                                    className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-lg transition duration-200"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleSaveEdit}
+                                    disabled={savingLoading}
+                                    className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition duration-200"
+                                >
+                                    {savingLoading ? 'Saving...' : 'Save Changes'}
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

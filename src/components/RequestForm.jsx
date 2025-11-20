@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
-import {createPurchase} from '../utils/googleSheets';
-import {getRefreshedAccessToken} from '../utils/googleAuth';
+import {createPurchase} from '../utils/googleSheets.js';
+import {getRefreshedAccessToken} from '../utils/googleAuth.js';
 
 const CATEGORIES = [
     'Robot',

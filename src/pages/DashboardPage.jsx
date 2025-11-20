@@ -1,269 +1,67 @@
+
 import { useState, useEffect } from 'react';
-import { LogOut, User, Search, Package, Calendar, DollarSign, Filter, X, RefreshCw, Plus, Truck } from 'lucide-react';
-import {
-    fetchPurchases,
-    fetchValidation, updatePurchaseByRequestId,
-} from '../utils/googleSheets';
-import RequestForm from "./RequestForm.jsx";
-import PurchaseDetailModal from "./PurchaseDetails.jsx";
-import {getRefreshedAccessToken} from "../utils/googleAuth.js";
-
-// Easy to modify category list
-export const CATEGORIES = [
-    'Robot',
-    'Inventory',
-    'Outreach',
-    'Field',
-    'Competition',
-    'Tools',
-    'Consumables',
-    'Other'
-];
-
-// State filter options
-export const STATES = [
-    'Pending Approval',
-    'Approved',
-    'On Hold',
-    'Purchased',
-    'Received',
-    'Completed'
-];
-
-export const STATE_COLORS = {
-    'Pending Approval': 'bg-yellow-100 text-yellow-800',
-    'Approved': 'bg-blue-100 text-blue-800',
-    'Received': 'bg-green-100 text-green-800',
-    'Purchased': 'bg-purple-100 text-purple-800',
-    'On Hold': 'bg-gray-100 text-gray-800',
-    'Completed': 'bg-green-100 text-green-800'
-};
-
-export const StateBadge = ({ state }) => {
-    if (!state) return null;
-
-    const colorClass = STATE_COLORS[state] || 'bg-gray-100 text-gray-800';
-
-    return (
-        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${colorClass}`}>{state}</span>
-    );
-};
-
-export const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-    });
-};
-
-export const formatCurrency = (amount) => {
-    if (!amount) return '$0.00';
-    const num = parseFloat(amount);
-    return isNaN(num) ? amount : `$${num.toFixed(2)}`;
-};
-
-export const calculateTotalCost = (purchase) => {
-    const itemPrice = parseCurrency(purchase['Unit Price']) ?? 0;
-    const quantity = parseCurrency(purchase['Quantity']) ?? 0;
-    const shipping = parseCurrency(purchase['Shipping']) ?? 0;
-
-    const cost = (itemPrice * quantity) + shipping;
-    purchase['Total Cost'] = formatCurrency(cost);
-    return purchase['Total Cost'];
-};
-
-export const parseCurrency = (formatted) => {
-    if (!formatted) return 0;
-    // Remove any non-numeric characters except for the decimal point
-    const num = parseFloat(formatted.replace(/[^0-9.-]+/g, ''));
-    return isNaN(num) ? 0 : num;
-};
+import DashboardHeader from '../components/dashboard/DashboardHeader';
+import SearchBar from '../components/dashboard/SearchBar';
+import FilterPanel from '../components/dashboard/FilterPanel';
+import PurchaseList from '../components/dashboard/PurchaseList';
+import PurchaseDetailModal from '../components/PurchaseDetailModal';
+import RequestForm from '../components/RequestForm';
+import { usePurchases } from '../hooks/usePurchases';
+import { useValidation } from '../hooks/useValidation';
+import { useFilters } from '../hooks/useFilters';
+import { applyFiltersAndSort } from '../utils/filterHelpers';
+import { parseCurrency, formatCurrency } from '../utils/purchaseHelpers';
 
 export default function Dashboard({ user, onSignOut }) {
-    const [purchases, setPurchases] = useState([]);
-    const [filteredPurchases, setFilteredPurchases] = useState([]);
-    const [validation, setValidation] = useState({});
-    const [searchQuery, setSearchQuery] = useState('');
-    const [selectedCategories, setSelectedCategories] = useState(() => {
-        const saved = localStorage.getItem('filter_categories');
-        try {
-            return saved ? JSON.parse(saved) : [];
-        } catch {
-            return [];
-        }
-    });
-    const [selectedStates, setSelectedStates] = useState(() => {
-        const saved = localStorage.getItem('filter_states');
-        try {
-            return saved ? JSON.parse(saved) : [];
-        } catch {
-            return [];
-        }
-    });
-    const [needsApprovalFilter, setNeedsApprovalFilter] = useState(() => {
-        const saved = localStorage.getItem('filter_needs_approval');
-        return saved === 'true';
-    });
-    const [sortOption, setSortOption] = useState(() => {
-        const saved = localStorage.getItem('sort_option');
-        return saved || 'newest';
-    });
+    const { purchases, loading, error, refreshing, loadPurchases, refreshPurchases, updatePurchase } = usePurchases();
+    const { validation, canSeeNeedsApprovalFilter, getApprovalFilterLabel } = useValidation();
+    const {
+        searchQuery,
+        setSearchQuery,
+        selectedCategories,
+        selectedStates,
+        needsApprovalFilter,
+        setNeedsApprovalFilter,
+        sortOption,
+        setSortOption,
+        toggleCategory,
+        toggleState,
+        clearAllFilters,
+        activeFilterCount
+    } = useFilters();
+
     const [selectedPurchase, setSelectedPurchase] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [refreshing, setRefreshing] = useState(false);
     const [showCreateForm, setShowCreateForm] = useState(false);
     const [editingShipping, setEditingShipping] = useState(null);
     const [shippingValue, setShippingValue] = useState('');
 
-    // Load purchases on mount
-    useEffect(() => {
-        loadPurchases();
-    }, []);
+    // Apply filters and sorting
+    const filteredPurchases = applyFiltersAndSort(purchases, {
+        searchQuery,
+        selectedCategories,
+        selectedStates,
+        needsApprovalFilter,
+        sortOption,
+        validation,
+        userName: user.name
+    });
 
-    // Save filters and sort to localStorage whenever they change
+    // Update selected purchase when purchases refresh
     useEffect(() => {
-        localStorage.setItem('filter_categories', JSON.stringify(selectedCategories));
-    }, [selectedCategories]);
-
-    useEffect(() => {
-        localStorage.setItem('filter_states', JSON.stringify(selectedStates));
-    }, [selectedStates]);
-
-    useEffect(() => {
-        localStorage.setItem('filter_needs_approval', needsApprovalFilter.toString());
-    }, [needsApprovalFilter]);
-
-    useEffect(() => {
-        localStorage.setItem('sort_option', sortOption);
-    }, [sortOption]);
-
-    useEffect(() => {
-        // Filter and sort purchases
-        let filtered = purchases;
-
-        // Filter by search query
-        if (searchQuery.trim() !== '') {
-            filtered = filtered.filter(purchase =>
-                purchase['Item Description']?.toLowerCase().includes(searchQuery.toLowerCase())
+        if (selectedPurchase) {
+            const updatedPurchase = purchases.find(
+                p => p['Request ID'] === selectedPurchase['Request ID']
             );
-        }
-
-        // Filter by categories
-        if (selectedCategories.length > 0) {
-            filtered = filtered.filter(purchase =>
-                selectedCategories.includes(purchase['Category'])
-            );
-        }
-
-        // Filter by states
-        if (selectedStates.length > 0) {
-            filtered = filtered.filter(purchase =>
-                selectedStates.includes(purchase['State'])
-            );
-        }
-
-        // Filter by needs approval
-        if (needsApprovalFilter) {
-            const isMentorOrDirector = validation['Mentors']?.includes(user.name) || validation['Directors']?.includes(user.name);
-            const isPresidentOrLeadership = validation['Presidents']?.includes(user.name) || validation['Leadership']?.includes(user.name);
-
-            if (isMentorOrDirector) {
-                // Show items missing mentor approval
-                filtered = filtered.filter(purchase => !purchase['M Approver'] || purchase['M Approver'].trim() === '');
-            } else if (isPresidentOrLeadership) {
-                // Show items missing student approval
-                filtered = filtered.filter(purchase => !purchase['S Approver'] || purchase['S Approver'].trim() === '');
+            if (updatedPurchase) {
+                setSelectedPurchase(updatedPurchase);
             }
         }
-
-        // Apply sorting
-        const sorted = [...filtered].sort((a, b) => {
-            switch (sortOption) {
-                case 'newest':
-                    return new Date(b['Date Requested']) - new Date(a['Date Requested']);
-                case 'oldest':
-                    return new Date(a['Date Requested']) - new Date(b['Date Requested']);
-                case 'name-asc':
-                    return (a['Item Description'] || '').localeCompare(b['Item Description'] || '');
-                case 'name-desc':
-                    return (b['Item Description'] || '').localeCompare(a['Item Description'] || '');
-                default:
-                    return new Date(b['Date Requested']) - new Date(a['Date Requested']);
-            }
-        });
-
-        setFilteredPurchases(sorted);
-    }, [searchQuery, selectedCategories, selectedStates, needsApprovalFilter, sortOption, purchases, validation, user.name]);
-
-    const loadPurchases = async () => {
-        try {
-            setLoading(true);
-            await handleRefresh();
-        } catch (err) {
-            console.error('Error loading data:', err);
-            setError('Failed to load data. Please try again.');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleRefresh = async () => {
-        try {
-            setRefreshing(true);
-            const [purchasesData, validationData] = await Promise.all([
-                fetchPurchases(await getRefreshedAccessToken()),
-                fetchValidation(await getRefreshedAccessToken()),
-            ]);
-
-            setPurchases(purchasesData);
-            setValidation(validationData);
-
-            // Update the selected purchase with fresh data if modal is open
-            if (selectedPurchase) {
-                const updatedPurchase = purchasesData.find(
-                    p => p['Request ID'] === selectedPurchase['Request ID']
-                );
-                if (updatedPurchase) {
-                    setSelectedPurchase(updatedPurchase);
-                }
-            }
-
-            setError(null);
-        } catch (err) {
-            console.error('Error refreshing data:', err);
-            alert('Failed to refresh data. Please try again.');
-        } finally {
-            setRefreshing(false);
-        }
-    };
-
-    const getAvailableStateTransitions = (currentState) => {
-        // Regular users have limited transitions
-        const transitions = {
-            'Pending Approval': ['On Hold'],
-            'Approved': ['Purchased', 'On Hold'],
-            'Purchased': ['Received', 'Completed'],
-            'On Hold': ['Pending Approval'],
-        };
-
-        return transitions[currentState] || [];
-    };
+    }, [purchases, selectedPurchase]);
 
     const handleStateChange = async (purchase, newState) => {
         try {
-            const updatedPurchase = {
-                ...purchase,
-                'State': newState
-            };
-
-            await updatePurchaseByRequestId(purchase['Request ID'], updatedPurchase, await getRefreshedAccessToken());
-            await loadPurchases();
+            await updatePurchase(purchase['Request ID'], { 'State': newState });
         } catch (err) {
-            console.error('Error updating state:', err);
             alert('Failed to update state. Please try again.');
         }
     };
@@ -282,16 +80,13 @@ export default function Dashboard({ user, onSignOut }) {
                 return;
             }
 
-            const updatedPurchase = {
-                ...purchase,
+            await updatePurchase(purchase['Request ID'], {
                 'Shipping': formatCurrency(numericValue)
-            };
-            await updatePurchaseByRequestId(purchase['Request ID'], updatedPurchase, await getRefreshedAccessToken());
+            });
+
             setEditingShipping(null);
             setShippingValue('');
-            await loadPurchases();
         } catch (err) {
-            console.error('Error updating shipping:', err);
             alert('Failed to update shipping. Please try again.');
         }
     };
@@ -301,428 +96,70 @@ export default function Dashboard({ user, onSignOut }) {
         setShippingValue('');
     };
 
-    const toggleCategory = (category) => {
-        setSelectedCategories(prev =>
-            prev.includes(category)
-                ? prev.filter(c => c !== category)
-                : [...prev, category]
-        );
-    };
-
-    const toggleState = (state) => {
-        setSelectedStates(prev =>
-            prev.includes(state)
-                ? prev.filter(s => s !== state)
-                : [...prev, state]
-        );
-    };
-
-    const clearAllFilters = () => {
-        setSelectedCategories([]);
-        setSelectedStates([]);
-        setSearchQuery('');
-        setNeedsApprovalFilter(false);
-        setSortOption('newest');
-    };
-
-    const activeFilterCount = selectedCategories.length + selectedStates.length + (needsApprovalFilter ? 1 : 0);
-
-    // Check if user can see the needs approval filter
-    const canSeeNeedsApprovalFilter = () => {
-        return validation['Mentors']?.includes(user.name) ||
-            validation['Directors']?.includes(user.name) ||
-            validation['Presidents']?.includes(user.name) ||
-            validation['Leadership']?.includes(user.name);
-    };
-
-    // Get the approval filter label
-    const getApprovalFilterLabel = () => {
-        const isMentorOrDirector = validation['Mentors']?.includes(user.name) || validation['Directors']?.includes(user.name);
-        return isMentorOrDirector ? 'Needs Mentor Approval' : 'Needs Student Approval';
-    };
+    const isDirector = validation['Directors']?.includes(user.name);
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
             <div className="max-w-7xl mx-auto pt-8">
                 {/* Header Card */}
                 <div className="bg-white rounded-2xl shadow-2xl overflow-hidden mb-6">
-                    <div className="bg-gradient-to-r from-red-700 to-orange-800 p-6 text-white">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-4">
-                                <div>
-                                    <h1 className="text-3xl font-bold mb-1">Dashboard</h1>
-                                    <p className="text-blue-100">Purchase Requests</p>
-                                </div>
-                                <button
-                                    onClick={handleRefresh}
-                                    disabled={refreshing}
-                                    className="bg-white/20 hover:bg-white/30 disabled:bg-white/10 text-white font-semibold py-2 px-4 rounded-lg transition duration-200 flex items-center"
-                                    title="Refresh data"
-                                >
-                                    <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-                                    {refreshing ? 'Refreshing...' : 'Refresh'}
-                                </button>
-                                <button
-                                    className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-lg font-semibold"
-                                    onClick={() => setShowCreateForm(true)}
-                                >
-                                    <Plus size={16} /> Create Request
-                                </button>
+                    <DashboardHeader
+                        user={user}
+                        onSignOut={onSignOut}
+                        onRefresh={refreshPurchases}
+                        onCreateRequest={() => setShowCreateForm(true)}
+                        refreshing={refreshing}
+                    />
 
-                                {showCreateForm && (
-                                    <RequestForm
-                                        user={user}
-                                        onClose={() => setShowCreateForm(false)}
-                                        onCreated={loadPurchases}
-                                        presetFields={{ 'State': 'Pending Approval' }}
-                                    />
-                                )}
-                            </div>
-                            <div className="flex items-center gap-4">
-                                <img
-                                    src={user.picture}
-                                    alt="Profile"
-                                    className="w-12 h-12 rounded-full border-2 border-white shadow-lg"
-                                    referrerPolicy="no-referrer"
-                                />
-                                <div className="text-right">
-                                    <p className="font-semibold">{user.name}</p>
-                                    <p className="text-sm text-blue-100">{user.email}</p>
-                                </div>
-                                <button
-                                    onClick={onSignOut}
-                                    className="ml-4 bg-white/20 hover:bg-white/30 text-white font-semibold py-2 px-4 rounded-lg transition duration-200 flex items-center"
-                                >
-                                    <LogOut className="w-4 h-4 mr-2" />
-                                    Sign Out
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+                    <SearchBar
+                        value={searchQuery}
+                        onChange={setSearchQuery}
+                    />
 
-                    {/* Search Bar */}
-                    <div className="p-6 border-b">
-                        <div className="relative">
-                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                            <input
-                                type="text"
-                                placeholder="Search by item description..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                            />
-                        </div>
-                    </div>
-
-                    {/* Filter Options */}
-                    <div className="p-6 border-b bg-gray-50">
-                        <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center gap-2">
-                                <Filter className="w-5 h-5 text-gray-600" />
-                                <h3 className="font-semibold text-gray-800">Filters & Sorting</h3>
-                                {activeFilterCount > 0 && (
-                                    <span className="bg-blue-600 text-white text-xs font-semibold px-2 py-1 rounded-full">
-                                        {activeFilterCount}
-                                    </span>
-                                )}
-                            </div>
-                            <div className="flex items-center gap-3">
-                                {/* Sort Dropdown */}
-                                <select
-                                    value={sortOption}
-                                    onChange={(e) => setSortOption(e.target.value)}
-                                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:border-blue-400 focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
-                                >
-                                    <option value="newest">Newest First</option>
-                                    <option value="oldest">Oldest First</option>
-                                    <option value="name-asc">Name (A-Z)</option>
-                                    <option value="name-desc">Name (Z-A)</option>
-                                </select>
-
-                                {activeFilterCount > 0 && (
-                                    <button
-                                        onClick={clearAllFilters}
-                                        className="text-sm text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1"
-                                    >
-                                        <X className="w-4 h-4" />
-                                        Clear All
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Category Filters */}
-                        <div className="mb-4">
-                            <p className="text-sm font-medium text-gray-700 mb-2">Category</p>
-                            <div className="flex flex-wrap gap-2">
-                                {CATEGORIES.map(category => (
-                                    <button
-                                        key={category}
-                                        onClick={() => toggleCategory(category)}
-                                        className={`px-4 py-2 rounded-lg text-sm font-medium transition duration-200 ${
-                                            selectedCategories.includes(category)
-                                                ? 'bg-blue-600 text-white shadow-md'
-                                                : 'bg-white text-gray-700 border border-gray-300 hover:border-blue-400'
-                                        }`}
-                                    >
-                                        {category}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* State Filters */}
-                        <div className="mb-4">
-                            <p className="text-sm font-medium text-gray-700 mb-2">State</p>
-                            <div className="flex flex-wrap gap-2">
-                                {STATES.map(state => (
-                                    <button
-                                        key={state}
-                                        onClick={() => toggleState(state)}
-                                        className={`px-4 py-2 rounded-lg text-sm font-medium transition duration-200 ${
-                                            selectedStates.includes(state)
-                                                ? 'bg-indigo-600 text-white shadow-md'
-                                                : 'bg-white text-gray-700 border border-gray-300 hover:border-indigo-400'
-                                        }`}
-                                    >
-                                        {state}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Needs Approval Filter */}
-                        {canSeeNeedsApprovalFilter() && (
-                            <div>
-                                <p className="text-sm font-medium text-gray-700 mb-2">Approval Status</p>
-                                <button
-                                    onClick={() => setNeedsApprovalFilter(!needsApprovalFilter)}
-                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition duration-200 ${
-                                        needsApprovalFilter
-                                            ? 'bg-orange-600 text-white shadow-md'
-                                            : 'bg-white text-gray-700 border border-gray-300 hover:border-orange-400'
-                                    }`}
-                                >
-                                    {getApprovalFilterLabel()}
-                                </button>
-                            </div>
-                        )}
-                    </div>
+                    <FilterPanel
+                        selectedCategories={selectedCategories}
+                        selectedStates={selectedStates}
+                        needsApprovalFilter={needsApprovalFilter}
+                        sortOption={sortOption}
+                        activeFilterCount={activeFilterCount}
+                        onToggleCategory={toggleCategory}
+                        onToggleState={toggleState}
+                        onToggleNeedsApproval={() => setNeedsApprovalFilter(!needsApprovalFilter)}
+                        onSortChange={setSortOption}
+                        onClearAll={clearAllFilters}
+                        canSeeNeedsApprovalFilter={canSeeNeedsApprovalFilter(user.name)}
+                        approvalFilterLabel={getApprovalFilterLabel(user.name)}
+                    />
                 </div>
 
                 {/* Purchases List */}
-                <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
-                    {loading ? (
-                        <div className="p-12 text-center">
-                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-                            <p className="mt-4 text-gray-600">Loading purchases...</p>
-                        </div>
-                    ) : error ? (
-                        <div className="p-12 text-center">
-                            <p className="text-red-600 mb-4">{error}</p>
-                            <button
-                                onClick={loadPurchases}
-                                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg transition duration-200"
-                            >
-                                Try Again
-                            </button>
-                        </div>
-                    ) : filteredPurchases.length === 0 ? (
-                        <div className="p-12 text-center text-gray-500">
-                            <Package className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                            <p className="text-lg">
-                                {searchQuery ? 'No purchases found matching your search' : 'No purchases yet'}
-                            </p>
-                        </div>
-                    ) : (
-                        <div className="divide-y divide-gray-200">
-                            {filteredPurchases.map((purchase, index) => (
-                                <div
-                                    key={index}
-                                    className="p-6 hover:bg-gray-50 transition duration-150"
-                                >
-                                    <div className="flex justify-between items-start">
-                                        <div
-                                            className="flex-1 cursor-pointer"
-                                            onClick={() => setSelectedPurchase(purchase)}
-                                        >
-                                            <div className="flex items-center gap-3 mb-2">
-                                                <h3 className="text-lg font-semibold text-gray-800">
-                                                    {purchase['Item Description'] || 'No description'}
-                                                </h3>
-                                                {purchase['State'] && <StateBadge state={purchase['State']} />}
-                                            </div>
+                <PurchaseList
+                    purchases={purchases}
+                    filteredPurchases={filteredPurchases}
+                    loading={loading}
+                    error={error}
+                    isDirector={isDirector}
+                    editingShipping={editingShipping}
+                    shippingValue={shippingValue}
+                    onShippingEdit={handleShippingEdit}
+                    onShippingSave={handleShippingSave}
+                    onShippingCancel={handleShippingCancel}
+                    onShippingValueChange={setShippingValue}
+                    onStateChange={handleStateChange}
+                    onPurchaseClick={setSelectedPurchase}
+                    onRetry={loadPurchases}
+                />
 
-                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3">
-                                                <div className="flex items-center text-sm text-gray-600">
-                                                    <Calendar className="w-4 h-4 mr-2 text-gray-400" />
-                                                    <div>
-                                                        <p className="text-xs text-gray-500">Requested</p>
-                                                        <p className="font-medium">{formatDate(purchase['Date Requested'])}</p>
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex items-center text-sm text-gray-600">
-                                                    <User className="w-4 h-4 mr-2 text-gray-400" />
-                                                    <div>
-                                                        <p className="text-xs text-gray-500">Requester</p>
-                                                        <p className="font-medium">{purchase['Requester'] || 'N/A'}</p>
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex items-center text-sm text-gray-600">
-                                                    <Package className="w-4 h-4 mr-2 text-gray-400" />
-                                                    <div>
-                                                        <p className="text-xs text-gray-500">Category</p>
-                                                        <p className="font-medium">{purchase['Category'] || 'N/A'}</p>
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex items-center text-sm text-gray-600">
-                                                    <DollarSign className="w-4 h-4 mr-2 text-gray-400" />
-                                                    <div>
-                                                        <p className="text-xs text-gray-500">Total Cost</p>
-                                                        <p className="font-medium">{calculateTotalCost(purchase)}</p>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {purchase['Comments'] && (
-                                                <p className="mt-3 text-sm text-gray-600 italic">
-                                                    {purchase['Comments']}
-                                                </p>
-                                            )}
-
-                                            {purchase['Item Link'] && (
-                                                <a
-                                                    href={purchase['Item Link']}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="inline-block mt-2 text-sm text-blue-600 hover:text-blue-700 hover:underline"
-                                                    onClick={(e) => e.stopPropagation()}
-                                                >
-                                                    View Item Link →
-                                                </a>
-                                            )}
-                                        </div>
-
-                                        <div className="ml-4 text-right flex flex-col items-end gap-3">
-                                            <div>
-                                                <p className="text-sm text-gray-500">Request ID</p>
-                                                <p className="font-mono text-sm font-semibold text-gray-700">
-                                                    {purchase['Request ID'] || `REQ-${index + 1}`}
-                                                </p>
-                                            </div>
-
-                                            {/* Shipping Edit Section - Only for Directors */}
-                                            {validation['Directors']?.includes(user.name) && (
-                                                <div className="border-t pt-3">
-                                                    {editingShipping === purchase['Request ID'] ? (
-                                                        <div className="flex flex-col gap-2">
-                                                            <p className="text-xs text-gray-500 font-medium">Edit Shipping:</p>
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="text-sm text-gray-600">$</span>
-                                                                <input
-                                                                    type="number"
-                                                                    step="0.01"
-                                                                    min="0"
-                                                                    value={shippingValue}
-                                                                    onChange={(e) => setShippingValue(e.target.value)}
-                                                                    onClick={(e) => e.stopPropagation()}
-                                                                    className="w-24 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                                                    autoFocus
-                                                                />
-                                                            </div>
-                                                            <div className="flex gap-2">
-                                                                <button
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        handleShippingSave(purchase);
-                                                                    }}
-                                                                    className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded transition duration-200"
-                                                                >
-                                                                    Save
-                                                                </button>
-                                                                <button
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        handleShippingCancel();
-                                                                    }}
-                                                                    className="px-3 py-1.5 bg-gray-300 hover:bg-gray-400 text-gray-800 text-xs font-semibold rounded transition duration-200"
-                                                                >
-                                                                    Cancel
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="flex flex-col gap-2">
-                                                            <div>
-                                                                <p className="text-xs text-gray-500">Shipping</p>
-                                                                <p className="text-sm font-medium text-gray-700">
-                                                                    {formatCurrency(purchase['Shipping'])}
-                                                                </p>
-                                                            </div>
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleShippingEdit(purchase);
-                                                                }}
-                                                                className="px-3 py-1.5 bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs font-semibold rounded transition duration-200 flex items-center justify-center gap-1"
-                                                            >
-                                                                <Truck className="w-3 h-3" />
-                                                                Edit Shipping
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
-
-                                            {/* State Change Buttons */}
-                                            {(() => {
-                                                const availableStates = getAvailableStateTransitions(
-                                                    purchase['State'],
-                                                    user.name
-                                                );
-
-                                                if (availableStates.length > 0) {
-                                                    return (
-                                                        <div className="flex flex-col gap-2 border-t pt-3">
-                                                            <p className="text-xs text-gray-500 font-medium">Change State:</p>
-                                                            {availableStates.map(state => (
-                                                                <button
-                                                                    key={state}
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        if (window.confirm(`Change state to "${state}"?`)) {
-                                                                            handleStateChange(purchase, state);
-                                                                        }
-                                                                    }}
-                                                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition duration-200 whitespace-nowrap ${STATE_COLORS[state]} hover:opacity-80 hover:shadow-md`}
-                                                                >
-                                                                    → {state}
-                                                                </button>
-                                                            ))}
-                                                        </div>
-                                                    );
-                                                }
-                                                return null;
-                                            })()}
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-
-                {/* Results Count */}
-                {!loading && !error && filteredPurchases.length > 0 && (
-                    <div className="mt-4 text-center text-sm text-gray-600">
-                        Showing {filteredPurchases.length} of {purchases.length} purchase{purchases.length !== 1 ? 's' : ''}
-                    </div>
+                {/* Modals */}
+                {showCreateForm && (
+                    <RequestForm
+                        user={user}
+                        onClose={() => setShowCreateForm(false)}
+                        onCreated={loadPurchases}
+                        presetFields={{ 'State': 'Pending Approval' }}
+                    />
                 )}
 
-                {/* Purchase Detail Modal */}
                 {selectedPurchase && (
                     <PurchaseDetailModal
                         purchase={selectedPurchase}

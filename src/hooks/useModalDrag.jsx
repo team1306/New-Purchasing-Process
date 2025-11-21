@@ -1,21 +1,34 @@
 import { useState, useEffect, useRef } from 'react';
 
-export const useModalDrag = (sheetRef, scrollRef, onClose) => {
+export const useModalDrag = (sheetRef, scrollRef, headerRef, onClose) => {
     const [translateY, setTranslateY] = useState(0);
     const [isDragging, setIsDragging] = useState(false);
     const startYRef = useRef(0);
     const lastYRef = useRef(0);
+    const dragStartedOnHeaderRef = useRef(false);
 
     const onTouchStart = (e) => {
-        if (!sheetRef.current) return;
+        if (!sheetRef.current || !headerRef.current) return;
+
+        // Check if touch started on the header
         const touch = e.touches ? e.touches[0] : e;
+        const headerRect = headerRef.current.getBoundingClientRect();
+        const touchedHeader = touch.clientY >= headerRect.top && touch.clientY <= headerRect.bottom;
+
+        if (!touchedHeader) {
+            dragStartedOnHeaderRef.current = false;
+            return;
+        }
+
+        dragStartedOnHeaderRef.current = true;
         startYRef.current = touch.clientY;
         lastYRef.current = touch.clientY;
         setIsDragging(true);
     };
 
     const onTouchMove = (e) => {
-        if (!isDragging || !sheetRef.current) return;
+        if (!isDragging || !sheetRef.current || !dragStartedOnHeaderRef.current) return;
+
         const touch = e.touches ? e.touches[0] : e;
         const deltaY = touch.clientY - startYRef.current;
         lastYRef.current = touch.clientY;
@@ -33,11 +46,14 @@ export const useModalDrag = (sheetRef, scrollRef, onClose) => {
     };
 
     const onTouchEnd = () => {
-        if (!isDragging) return;
+        if (!isDragging || !dragStartedOnHeaderRef.current) return;
         setIsDragging(false);
+        dragStartedOnHeaderRef.current = false;
+
         const delta = lastYRef.current - startYRef.current;
         const threshold = Math.min(140, window.innerHeight * 0.18);
         if (delta > threshold) {
+            // Let the parent handle the close with animation
             onClose();
         } else {
             setTranslateY(0);

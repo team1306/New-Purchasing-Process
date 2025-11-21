@@ -1,5 +1,5 @@
 import { Package } from 'lucide-react';
-import PurchaseCard from './PurchaseCard';
+import PurchaseCardWrapper from './PurchaseCardWrapper';
 
 export default function PurchaseList({
                                          purchases,
@@ -71,7 +71,7 @@ export default function PurchaseList({
             <div className="bg-white md:rounded-2xl shadow-2xl overflow-hidden animate-fadeIn">
                 <div className="divide-y divide-gray-200">
                     {filteredPurchases.map((purchase, index) => (
-                        <PurchaseCard
+                        <PurchaseCardWrapper
                             key={purchase['Request ID'] || index}
                             purchase={purchase}
                             index={index}

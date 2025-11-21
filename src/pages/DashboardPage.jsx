@@ -8,12 +8,14 @@ import RequestForm from '../components/RequestForm';
 import { usePurchases } from '../hooks/usePurchases';
 import { useValidation } from '../hooks/useValidation';
 import { useFilters } from '../hooks/useFilters';
+import { useAlert } from '../components/AlertContext';
 import { applyFiltersAndSort } from '../utils/filterHelpers';
 import { parseCurrency, formatCurrency } from '../utils/purchaseHelpers';
 
 export default function Dashboard({ user, onSignOut }) {
     const { purchases, loading, error, refreshing, loadPurchases, refreshPurchases, updatePurchase } = usePurchases();
     const { validation, canSeeNeedsApprovalFilter, getApprovalFilterLabel } = useValidation();
+    const { showError, showConfirm } = useAlert();
     const {
         searchQuery,
         setSearchQuery,
@@ -61,7 +63,7 @@ export default function Dashboard({ user, onSignOut }) {
         try {
             await updatePurchase(purchase['Request ID'], { 'State': newState });
         } catch (err) {
-            alert('Failed to update state. Please try again.');
+            await showError('Failed to update state. Please try again.');
         }
     };
 
@@ -75,7 +77,7 @@ export default function Dashboard({ user, onSignOut }) {
         try {
             const numericValue = parseFloat(shippingValue);
             if (isNaN(numericValue) || numericValue < 0) {
-                alert('Please enter a valid shipping cost');
+                await showError('Please enter a valid shipping cost');
                 return;
             }
 
@@ -86,7 +88,7 @@ export default function Dashboard({ user, onSignOut }) {
             setEditingShipping(null);
             setShippingValue('');
         } catch (err) {
-            alert('Failed to update shipping. Please try again.');
+            await showError('Failed to update shipping. Please try again.');
         }
     };
 

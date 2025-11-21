@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { getRefreshedAccessToken } from '../utils/googleAuth.js';
 import { updatePurchaseByRequestId, deletePurchaseByRequestId } from '../utils/googleSheets.js';
 import { calculateTotalCost, getRequestTier } from '../utils/purchaseHelpers.js';
+import { useAlert } from './AlertContext';
 import ModalHeader from './ModalHeader';
 import PurchaseInfoSection from './PurchaseInfoSection';
 import ApprovalSection from './ApprovalSection';
@@ -17,11 +18,22 @@ export default function PurchaseDetailModal({ purchase, user, validation, onClos
     const [originalTier, setOriginalTier] = useState(null);
     const [isClosing, setIsClosing] = useState(false);
 
+    const { showConfirm, showError } = useAlert();
+
     const sheetRef = useRef(null);
     const scrollRef = useRef(null);
+    const headerRef = useRef(null);
 
-    // Custom hooks for drag functionality
-    const { translateY, onTouchStart, onTouchMove, onTouchEnd } = useModalDrag(sheetRef, scrollRef, onClose);
+    const handleClose = () => {
+        setIsClosing(true);
+        // Wait for animation to complete before actually closing
+        setTimeout(() => {
+            onClose();
+        }, 300); // Match animation duration
+    };
+
+    // Custom hooks for drag functionality - pass handleClose instead of onClose
+    const { translateY, onTouchStart, onTouchMove, onTouchEnd } = useModalDrag(sheetRef, scrollRef, headerRef, handleClose);
 
     // Custom hook for approval logic
     const {
@@ -58,13 +70,6 @@ export default function PurchaseDetailModal({ purchase, user, validation, onClos
         return () => window.removeEventListener('keydown', onKey);
     }, []);
 
-    const handleClose = () => {
-        setIsClosing(true);
-        setTimeout(() => {
-            onClose();
-        }, 300); // Match animation duration
-    };
-
     const handleEditChange = (field, value) => {
         setEditedPurchase(prev => ({ ...prev, [field]: value }));
     };
@@ -80,7 +85,12 @@ export default function PurchaseDetailModal({ purchase, user, validation, onClos
     };
 
     const handleDeletePurchase = async () => {
-        if (!window.confirm(`Are you sure you want to delete request "${purchase['Item Description']}"?`)) return;
+        const confirmed = await showConfirm(
+            `Are you sure you want to delete request "${purchase['Item Description']}"?\n\nThis action cannot be undone.`,
+            { confirmText: 'Delete', cancelText: 'Cancel' }
+        );
+
+        if (!confirmed) return;
 
         try {
             setSavingLoading(true);
@@ -89,7 +99,7 @@ export default function PurchaseDetailModal({ purchase, user, validation, onClos
             onClose();
         } catch (err) {
             console.error('Error deleting purchase:', err);
-            alert(`Failed to delete purchase: ${err.message}`);
+            await showError(`Failed to delete purchase: ${err.message}`);
         } finally {
             setSavingLoading(false);
         }
@@ -97,10 +107,16 @@ export default function PurchaseDetailModal({ purchase, user, validation, onClos
 
     const handleApprove = async (approvalType, isOverwrite = false) => {
         const confirmMessage = isOverwrite
-            ? `Are you sure you want to overwrite the existing ${approvalType} approval? The current approver is no longer valid for this request amount.`
+            ? `Are you sure you want to overwrite the existing ${approvalType} approval?\n\nThe current approver is no longer valid for this request amount.`
             : `Approve this request as ${approvalType}?`;
 
-        if (isOverwrite && !window.confirm(confirmMessage)) return;
+        if (isOverwrite) {
+            const confirmed = await showConfirm(confirmMessage, {
+                confirmText: 'Overwrite',
+                cancelText: 'Cancel'
+            });
+            if (!confirmed) return;
+        }
 
         try {
             setApprovalLoading(true);
@@ -114,7 +130,7 @@ export default function PurchaseDetailModal({ purchase, user, validation, onClos
             onUpdate();
         } catch (err) {
             console.error('Error approving purchase:', err);
-            alert(`Failed to approve: ${err.message}`);
+            await showError(`Failed to approve: ${err.message}`);
         } finally {
             setApprovalLoading(false);
         }
@@ -133,7 +149,7 @@ export default function PurchaseDetailModal({ purchase, user, validation, onClos
             onUpdate();
         } catch (err) {
             console.error('Error withdrawing approval:', err);
-            alert(`Failed to withdraw approval: ${err.message}`);
+            await showError(`Failed to withdraw approval: ${err.message}`);
         } finally {
             setApprovalLoading(false);
         }
@@ -148,13 +164,18 @@ export default function PurchaseDetailModal({ purchase, user, validation, onClos
             const updates = { ...editedPurchase };
 
             if (originalTier !== newTier) {
-                if (window.confirm('The request tier has changed. All approvals will be removed. Continue?')) {
-                    updates['S Approver'] = '';
-                    updates['M Approver'] = '';
-                } else {
+                const confirmed = await showConfirm(
+                    'The request tier has changed. All approvals will be removed. Continue?',
+                    { confirmText: 'Continue', cancelText: 'Cancel' }
+                );
+
+                if (!confirmed) {
                     setSavingLoading(false);
                     return;
                 }
+
+                updates['S Approver'] = '';
+                updates['M Approver'] = '';
             }
 
             await updatePurchaseByRequestId(purchase['Request ID'], updates, await getRefreshedAccessToken());
@@ -162,41 +183,47 @@ export default function PurchaseDetailModal({ purchase, user, validation, onClos
             setIsEditing(false);
         } catch (err) {
             console.error('Error saving edits:', err);
-            alert(`Failed to save changes: ${err.message}`);
+            await showError(`Failed to save changes: ${err.message}`);
         } finally {
             setSavingLoading(false);
         }
     };
 
-    const sheetStyle = {
-        transform: isClosing ? 'translateY(100%)' : `translateY(${translateY}px)`,
-        transition: isClosing ? 'transform 300ms cubic-bezier(.22,.9,.32,1)' : 'transform 180ms cubic-bezier(.22,.9,.32,1)',
-        touchAction: 'pan-y',
-    };
-
     return (
         <div
-            className={`fixed inset-0 bg-black z-50 flex items-end md:items-center justify-center p-0 md:p-4 transition-opacity duration-300 ${
-                isClosing ? 'bg-opacity-0' : 'bg-opacity-50 animate-fadeIn'
+            className={`fixed inset-0 bg-black z-50 flex items-end md:items-center justify-center p-0 md:p-4 ${
+                isClosing ? 'animate-fadeOut' : 'animate-fadeIn'
             }`}
+            style={{
+                backgroundColor: isClosing ? 'transparent' : 'rgba(0, 0, 0, 0.5)',
+                transition: 'background-color 300ms ease-out'
+            }}
             onClick={handleClose}
             aria-modal="true"
             role="dialog"
         >
             <div
                 ref={sheetRef}
-                style={sheetStyle}
                 onClick={(e) => e.stopPropagation()}
                 onTouchStart={onTouchStart}
                 onTouchMove={onTouchMove}
                 onTouchEnd={onTouchEnd}
-                className={`bg-white shadow-2xl w-full rounded-t-2xl md:rounded-2xl md:max-w-3xl md:h-auto md:max-h-[90vh] max-h-[95vh] overflow-hidden flex flex-col transition-all duration-300 ${
-                    isClosing
-                        ? 'md:opacity-0 md:scale-95'
-                        : 'md:opacity-100 md:scale-100 md:animate-slideUp animate-slideInFromBottom'
+                style={{
+                    transform: isClosing
+                        ? (window.innerWidth < 768 ? 'translateY(100%)' : `scale(0.95) translateY(${translateY}px)`)
+                        : `translateY(${translateY}px) scale(1)`,
+                    opacity: isClosing ? 0 : 1,
+                    transition: isClosing
+                        ? 'all 300ms cubic-bezier(.22,.9,.32,1)'
+                        : 'transform 180ms cubic-bezier(.22,.9,.32,1), opacity 300ms ease-out',
+                    touchAction: 'pan-y',
+                }}
+                className={`bg-white shadow-2xl w-full rounded-t-2xl md:rounded-2xl md:max-w-3xl md:h-auto md:max-h-[90vh] max-h-[95vh] overflow-hidden flex flex-col ${
+                    !isClosing && 'md:animate-slideUp animate-slideInFromBottom'
                 }`}
             >
                 <ModalHeader
+                    ref={headerRef}
                     purchase={purchase}
                     isEditing={isEditing}
                     savingLoading={savingLoading}

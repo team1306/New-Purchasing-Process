@@ -80,7 +80,7 @@ export default function PurchaseCard({
 
                 {/* Actions Section (Not clickable for modal) */}
                 {(isDirector || availableStates.length > 0) && (
-                    <div className="px-4 pb-4 space-y-2" onClick={(e) => e.stopPropagation()}>
+                    <div className="px-4 pb-4 space-y-2">
                         {/* Director Shipping Edit */}
                         {isDirector && (
                             <div className="bg-gray-50 rounded-lg p-3">
@@ -95,19 +95,26 @@ export default function PurchaseCard({
                                                 min="0"
                                                 value={shippingValue}
                                                 onChange={(e) => onShippingValueChange(e.target.value)}
+                                                onClick={(e) => e.stopPropagation()}
                                                 className="flex-1 px-3 py-2 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                                 autoFocus
                                             />
                                         </div>
                                         <div className="flex gap-2">
                                             <button
-                                                onClick={() => onShippingSave(purchase)}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onShippingSave(purchase);
+                                                }}
                                                 className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition active:scale-95"
                                             >
                                                 Save
                                             </button>
                                             <button
-                                                onClick={onShippingCancel}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onShippingCancel();
+                                                }}
                                                 className="flex-1 px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 text-sm font-semibold rounded-lg transition active:scale-95"
                                             >
                                                 Cancel
@@ -123,7 +130,10 @@ export default function PurchaseCard({
                                             </p>
                                         </div>
                                         <button
-                                            onClick={() => onShippingEdit(purchase)}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onShippingEdit(purchase);
+                                            }}
                                             className="px-3 py-2 bg-blue-100 hover:bg-blue-200 text-blue-800 text-sm font-semibold rounded-lg transition active:scale-95 flex items-center gap-1"
                                         >
                                             <Truck className="w-4 h-4" />
@@ -142,10 +152,9 @@ export default function PurchaseCard({
                                     {availableStates.map(state => (
                                         <button
                                             key={state}
-                                            onClick={() => {
-                                                if (window.confirm(`Change state to "${state}"?`)) {
-                                                    onStateChange(purchase, state);
-                                                }
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onStateChange(purchase, state);
                                             }}
                                             className={`px-3 py-2 rounded-lg text-sm font-semibold transition active:scale-95 whitespace-nowrap ${STATE_COLORS[state]} hover:opacity-80`}
                                         >
@@ -160,10 +169,10 @@ export default function PurchaseCard({
             </div>
 
             {/* Desktop Layout (Original) */}
-            <div className="hidden md:block p-6">
+            <div className="hidden md:block p-6 cursor-pointer" onClick={() => onClick(purchase)}>
                 <div className="flex justify-between items-start gap-4">
                     {/* LEFT SECTION */}
-                    <div className="flex-1 cursor-pointer" onClick={() => onClick(purchase)}>
+                    <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2 flex-wrap">
                             <h3 className="text-lg font-semibold text-gray-800">
                                 {purchase['Item Description'] || 'No description'}
@@ -235,7 +244,7 @@ export default function PurchaseCard({
                     </div>
 
                     {/* RIGHT SECTION */}
-                    <div className="flex flex-col items-end gap-3">
+                    <div className="flex flex-col items-end gap-3" onClick={(e) => e.stopPropagation()}>
                         <div className="text-right">
                             <p className="text-xs text-gray-500">Request ID</p>
                             <p className="font-mono text-sm font-semibold text-gray-700">
@@ -314,9 +323,7 @@ export default function PurchaseCard({
                                             key={state}
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                if (window.confirm(`Change state to "${state}"?`)) {
-                                                    onStateChange(purchase, state);
-                                                }
+                                                onStateChange(purchase, state);
                                             }}
                                             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition whitespace-nowrap ${STATE_COLORS[state]} hover:opacity-80 hover:shadow-md`}
                                         >

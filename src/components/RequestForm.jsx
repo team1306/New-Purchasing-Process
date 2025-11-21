@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, PlusCircle } from 'lucide-react';
 import { createPurchase } from '../utils/googleSheets.js';
 import { getRefreshedAccessToken } from '../utils/googleAuth.js';
+import { useAlert } from './AlertContext';
 
 const CATEGORIES = [
     'Robot',
@@ -15,6 +16,7 @@ const CATEGORIES = [
 ];
 
 export default function RequestForm({ user, onClose, onCreated, presetFields = {} }) {
+    const { showError } = useAlert();
     const [newRequest, setNewRequest] = useState({
         'Request ID': '',
         'Item Description': '',
@@ -39,6 +41,14 @@ export default function RequestForm({ user, onClose, onCreated, presetFields = {
         field => newRequest[field] && newRequest[field].toString().trim() !== ''
     );
 
+    // Prevent background scroll when modal is open
+    useEffect(() => {
+        document.body.style.overflow = 'hidden';
+        return () => {
+            document.body.style.overflow = '';
+        };
+    }, []);
+
     const handleClose = () => {
         setIsClosing(true);
         setTimeout(() => onClose(), 300); // Match animation duration
@@ -54,7 +64,7 @@ export default function RequestForm({ user, onClose, onCreated, presetFields = {
             onClose();
         } catch (err) {
             console.error('Error creating request:', err);
-            alert(`Failed to create request: ${err.message}`);
+            showError(`Failed to create request: ${err.message}`);
         } finally {
             setSavingLoading(false);
         }

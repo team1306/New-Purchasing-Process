@@ -1,92 +1,83 @@
 import { useState, useEffect, useRef } from 'react';
 
-export const useModalDrag = (sheetRef, scrollRef, headerRef, onClose) => {
+export const useModalDrag = (sheetRef, scrollRef, onClose) => {
     const [translateY, setTranslateY] = useState(0);
     const [isDragging, setIsDragging] = useState(false);
+
     const startYRef = useRef(0);
     const lastYRef = useRef(0);
-    const dragStartedOnHeaderRef = useRef(false);
 
     const onTouchStart = (e) => {
-        if (!sheetRef.current || !headerRef.current) return;
+        if (!sheetRef.current) return;
 
-        // Check if touch started on the header
         const touch = e.touches ? e.touches[0] : e;
-        const headerRect = headerRef.current.getBoundingClientRect();
-        const touchedHeader = touch.clientY >= headerRect.top && touch.clientY <= headerRect.bottom;
+        const scrollEl = scrollRef.current;
 
-        if (!touchedHeader) {
-            dragStartedOnHeaderRef.current = false;
-            return;
-        }
+        // Only allow drag when content is fully scrolled to top
+        const scrollAtTop = !scrollEl || scrollEl.scrollTop <= 0;
+        if (!scrollAtTop) return;
 
-        dragStartedOnHeaderRef.current = true;
         startYRef.current = touch.clientY;
         lastYRef.current = touch.clientY;
         setIsDragging(true);
     };
 
     const onTouchMove = (e) => {
-        if (!isDragging || !sheetRef.current || !dragStartedOnHeaderRef.current) return;
+        if (!isDragging || !sheetRef.current) return;
 
         const touch = e.touches ? e.touches[0] : e;
         const deltaY = touch.clientY - startYRef.current;
-        lastYRef.current = touch.clientY;
 
-        const scrollEl = scrollRef.current;
-        const scrollAtTop = !scrollEl || scrollEl.scrollTop <= 0;
-
-        if (deltaY > 0 && scrollAtTop) {
-            setTranslateY(deltaY);
-            if (e.cancelable) e.preventDefault();
-        } else if (deltaY < 0 && translateY > 0) {
-            setTranslateY(Math.max(0, deltaY));
+        // Only drag downward, and damp movement to reduce jitter
+        if (deltaY > 0) {
+            setTranslateY(deltaY * 0.9);
             if (e.cancelable) e.preventDefault();
         }
     };
 
     const onTouchEnd = () => {
-        if (!isDragging || !dragStartedOnHeaderRef.current) return;
+        if (!isDragging) return;
+
         setIsDragging(false);
-        dragStartedOnHeaderRef.current = false;
 
         const delta = lastYRef.current - startYRef.current;
-        const threshold = Math.min(140, window.innerHeight * 0.18);
+        const threshold = window.innerHeight * 0.50; // must drag half screen to close
+
         if (delta > threshold) {
-            // Let the parent handle the close with animation
+            // Trigger animated close via parent, not instant close
             onClose();
         } else {
             setTranslateY(0);
         }
     };
 
+    // Use pointer events for stability
     useEffect(() => {
         const el = sheetRef.current;
         if (!el) return;
 
-        const onPointerDown = (e) => {
+        const handlePointerDown = (e) => {
             if (window.innerWidth >= 768) return;
-            el.setPointerCapture?.(e.pointerId);
             onTouchStart(e);
         };
-        const onPointerMove = (e) => {
+        const handlePointerMove = (e) => {
             if (!isDragging) return;
+            lastYRef.current = e.clientY;
             onTouchMove(e);
         };
-        const onPointerUp = (e) => {
+        const handlePointerUp = () => {
             if (!isDragging) return;
-            onTouchEnd(e);
-            el.releasePointerCapture?.(e.pointerId);
+            onTouchEnd();
         };
 
-        el.addEventListener('pointerdown', onPointerDown);
-        window.addEventListener('pointermove', onPointerMove);
-        window.addEventListener('pointerup', onPointerUp);
+        el.addEventListener("pointerdown", handlePointerDown);
+        window.addEventListener("pointermove", handlePointerMove);
+        window.addEventListener("pointerup", handlePointerUp);
 
         return () => {
-            el.removeEventListener('pointerdown', onPointerDown);
-            window.removeEventListener('pointermove', onPointerMove);
-            window.removeEventListener('pointerup', onPointerUp);
+            el.removeEventListener("pointerdown", handlePointerDown);
+            window.removeEventListener("pointermove", handlePointerMove);
+            window.removeEventListener("pointerup", handlePointerUp);
         };
     }, [isDragging]);
 

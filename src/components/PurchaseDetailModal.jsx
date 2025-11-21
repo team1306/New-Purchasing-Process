@@ -26,15 +26,13 @@ export default function PurchaseDetailModal({ purchase, user, validation, onClos
 
     const handleClose = () => {
         setIsClosing(true);
-        // Wait for animation to complete before actually closing
         setTimeout(() => {
             onClose();
-        }, 300); // Match animation duration
+        }, 300); // matches animation duration
     };
 
     // Custom hooks for drag functionality - pass handleClose instead of onClose
-    const { translateY, onTouchStart, onTouchMove, onTouchEnd } = useModalDrag(sheetRef, scrollRef, headerRef, handleClose);
-
+    const { translateY, onTouchStart, onTouchMove, onTouchEnd } = useModalDrag(sheetRef, scrollRef, handleClose);
     // Custom hook for approval logic
     const {
         canApproveRequest,
@@ -210,17 +208,20 @@ export default function PurchaseDetailModal({ purchase, user, validation, onClos
                 onTouchEnd={onTouchEnd}
                 style={{
                     transform: isClosing
-                        ? (window.innerWidth < 768 ? 'translateY(100%)' : `scale(0.95) translateY(${translateY}px)`)
+                        ? (window.innerWidth < 768
+                            ? "translateY(100%)"
+                            : `scale(0.95) translateY(${translateY}px)`)
                         : `translateY(${translateY}px) scale(1)`,
                     opacity: isClosing ? 0 : 1,
+                    paddingTop: "env(safe-area-inset-top)", // ⬅ keeps header below Chrome bar
                     transition: isClosing
-                        ? 'all 300ms cubic-bezier(.22,.9,.32,1)'
-                        : 'transform 180ms cubic-bezier(.22,.9,.32,1), opacity 300ms ease-out',
-                    touchAction: 'pan-y',
+                        ? "all 300ms cubic-bezier(.22,.9,.32,1)"
+                        : "transform 180ms cubic-bezier(.22,.9,.32,1), opacity 300ms ease-out",
+                    touchAction: "pan-y",
                 }}
-                className={`bg-white shadow-2xl w-full rounded-t-2xl md:rounded-2xl md:max-w-3xl md:h-auto md:max-h-[90vh] max-h-[95vh] overflow-hidden flex flex-col ${
-                    !isClosing && 'md:animate-slideUp animate-slideInFromBottom'
-                }`}
+                className="bg-white shadow-2xl w-full rounded-t-2xl md:rounded-2xl
+               md:max-w-3xl md:h-auto md:max-h-[90vh]
+               max-h-[95vh] overflow-hidden flex flex-col"
             >
                 <ModalHeader
                     ref={headerRef}

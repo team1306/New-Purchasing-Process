@@ -1,4 +1,5 @@
-import { LogOut, RefreshCw, Plus } from 'lucide-react';
+import { LogOut, RefreshCw, Plus, Menu, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
 
 export default function DashboardHeader({
                                             user,
@@ -7,68 +8,149 @@ export default function DashboardHeader({
                                             onCreateRequest,
                                             refreshing
                                         }) {
+    const [showMenu, setShowMenu] = useState(false);
+    const [isAnimating, setIsAnimating] = useState(false);
+
+    useEffect(() => {
+        if (showMenu) {
+            setIsAnimating(true);
+        }
+    }, [showMenu]);
+
+    const handleCloseMenu = () => {
+        setIsAnimating(false);
+        setTimeout(() => setShowMenu(false), 300); // Match animation duration
+    };
+
     return (
-        <div className="bg-gradient-to-r from-red-700 to-orange-800 p-4 md:p-6 text-white">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-
-                {/* Left Section */}
-                <div className="flex flex-col md:flex-row md:items-center gap-4">
-                    <div className="text-center md:text-left">
-                        <h1 className="text-2xl md:text-3xl font-bold mb-1">Dashboard</h1>
-                        <p className="text-blue-100 text-sm md:text-base">Purchase Requests</p>
+        <div className="bg-gradient-to-r from-red-700 to-orange-800 text-white">
+            {/* Mobile Header */}
+            <div className="md:hidden">
+                <div className="flex items-center justify-between p-4">
+                    <div className="flex items-center gap-3">
+                        <img
+                            src={user.picture}
+                            alt="Profile"
+                            className="w-10 h-10 rounded-full border-2 border-white shadow-lg"
+                            referrerPolicy="no-referrer"
+                        />
+                        <div>
+                            <h1 className="text-lg font-bold">Dashboard</h1>
+                            <p className="text-xs text-blue-100">Purchase Requests</p>
+                        </div>
                     </div>
 
-                    {/* Refresh Button */}
                     <button
-                        onClick={onRefresh}
-                        disabled={refreshing}
-                        className="bg-white/20 hover:bg-white/30 disabled:bg-white/10 text-white font-semibold py-2 px-3 md:px-4 rounded-lg transition duration-200 flex items-center justify-center"
-                        title="Refresh data"
+                        onClick={() => setShowMenu(!showMenu)}
+                        className="p-2 hover:bg-white/20 rounded-lg transition"
+                        aria-label="Toggle menu"
                     >
-                        <RefreshCw className={`w-5 h-5 md:mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-                        <span className="hidden md:inline">
+                        {showMenu ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+                    </button>
+                </div>
+
+                {/* Mobile Menu Dropdown */}
+                {showMenu && (
+                    <div
+                        className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                            isAnimating ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+                        }`}
+                    >
+                        <div className="px-4 pb-4 space-y-2 border-t border-white/20 pt-4">
+                            <button
+                                onClick={() => {
+                                    onCreateRequest();
+                                    handleCloseMenu();
+                                }}
+                                className="w-full flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white py-3 px-4 rounded-lg font-semibold transition shadow-lg"
+                            >
+                                <Plus size={20} />
+                                <span>Create Request</span>
+                            </button>
+
+                            <button
+                                onClick={() => {
+                                    onRefresh();
+                                    handleCloseMenu();
+                                }}
+                                disabled={refreshing}
+                                className="w-full bg-white/20 hover:bg-white/30 disabled:bg-white/10 text-white font-semibold py-3 px-4 rounded-lg transition flex items-center justify-center gap-2"
+                            >
+                                <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
+                                <span>{refreshing ? 'Refreshing...' : 'Refresh'}</span>
+                            </button>
+
+                            <div className="bg-white/10 rounded-lg p-3">
+                                <p className="font-semibold text-sm">{user.name}</p>
+                                <p className="text-xs text-blue-100">{user.email}</p>
+                            </div>
+
+                            <button
+                                onClick={() => {
+                                    onSignOut();
+                                    handleCloseMenu();
+                                }}
+                                className="w-full bg-white/20 hover:bg-white/30 text-white font-semibold py-3 px-4 rounded-lg transition flex items-center justify-center gap-2"
+                            >
+                                <LogOut className="w-5 h-5" />
+                                <span>Sign Out</span>
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Desktop Header */}
+            <div className="hidden md:block p-6">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <div>
+                            <h1 className="text-3xl font-bold mb-1">Dashboard</h1>
+                            <p className="text-blue-100">Purchase Requests</p>
+                        </div>
+
+                        <button
+                            onClick={onRefresh}
+                            disabled={refreshing}
+                            className="bg-white/20 hover:bg-white/30 disabled:bg-white/10 text-white font-semibold py-2 px-4 rounded-lg transition duration-200 flex items-center"
+                            title="Refresh data"
+                        >
+                            <RefreshCw className={`w-5 h-5 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
                             {refreshing ? 'Refreshing...' : 'Refresh'}
-                        </span>
-                    </button>
+                        </button>
 
-                    {/* Create Request */}
-                    <button
-                        className="flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white py-2 px-3 md:px-4 rounded-lg font-semibold"
-                        onClick={onCreateRequest}
-                    >
-                        <Plus size={18} />
-                        <span className="hidden md:inline">Create Request</span>
-                    </button>
-                </div>
-
-                {/* Right Section */}
-                <div className="flex items-center justify-between md:justify-end gap-4 w-full md:w-auto">
-
-                    {/* Profile Pic */}
-                    <img
-                        src={user.picture}
-                        alt="Profile"
-                        className="w-8 h-8 md:w-12 md:h-12 rounded-full border-2 border-white shadow-lg"
-                        referrerPolicy="no-referrer"
-                    />
-
-                    {/* User Info (hidden on small screens) */}
-                    <div className="hidden md:block text-right">
-                        <p className="font-semibold">{user.name}</p>
-                        <p className="text-sm text-blue-100">{user.email}</p>
+                        <button
+                            className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-lg font-semibold shadow-lg transition"
+                            onClick={onCreateRequest}
+                        >
+                            <Plus size={20} />
+                            Create Request
+                        </button>
                     </div>
 
-                    {/* Sign Out */}
-                    <button
-                        onClick={onSignOut}
-                        className="bg-white/20 hover:bg-white/30 text-white font-semibold py-2 px-3 md:px-4 rounded-lg transition duration-200 flex items-center justify-center"
-                        title="Sign Out"
-                    >
-                        <LogOut className="w-5 h-5 md:mr-2" />
-                        <span className="hidden md:inline">Sign Out</span>
-                    </button>
-                </div>
+                    <div className="flex items-center gap-4">
+                        <img
+                            src={user.picture}
+                            alt="Profile"
+                            className="w-12 h-12 rounded-full border-2 border-white shadow-lg"
+                            referrerPolicy="no-referrer"
+                        />
 
+                        <div className="text-right">
+                            <p className="font-semibold">{user.name}</p>
+                            <p className="text-sm text-blue-100">{user.email}</p>
+                        </div>
+
+                        <button
+                            onClick={onSignOut}
+                            className="bg-white/20 hover:bg-white/30 text-white font-semibold py-2 px-4 rounded-lg transition duration-200 flex items-center"
+                            title="Sign Out"
+                        >
+                            <LogOut className="w-5 h-5 mr-2" />
+                            Sign Out
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     );

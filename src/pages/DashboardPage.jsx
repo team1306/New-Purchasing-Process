@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import DashboardHeader from '../components/dashboard/DashboardHeader';
 import SearchBar from '../components/dashboard/SearchBar';
@@ -99,76 +98,81 @@ export default function Dashboard({ user, onSignOut }) {
     const isDirector = validation['Directors']?.includes(user.name);
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-            <div className="max-w-7xl mx-auto pt-8">
-                {/* Header Card */}
-                <div className="bg-white rounded-2xl shadow-2xl overflow-hidden mb-6">
-                    <DashboardHeader
-                        user={user}
-                        onSignOut={onSignOut}
-                        onRefresh={refreshPurchases}
-                        onCreateRequest={() => setShowCreateForm(true)}
-                        refreshing={refreshing}
-                    />
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+            {/* Mobile: No padding, Desktop: Padding */}
+            <div className="md:p-4">
+                <div className="max-w-7xl mx-auto md:pt-8">
+                    {/* Header Card */}
+                    <div className="bg-white md:rounded-2xl shadow-2xl overflow-hidden mb-4 md:mb-6">
+                        <DashboardHeader
+                            user={user}
+                            onSignOut={onSignOut}
+                            onRefresh={refreshPurchases}
+                            onCreateRequest={() => setShowCreateForm(true)}
+                            refreshing={refreshing}
+                        />
 
-                    <SearchBar
-                        value={searchQuery}
-                        onChange={setSearchQuery}
-                    />
+                        <SearchBar
+                            value={searchQuery}
+                            onChange={setSearchQuery}
+                        />
 
-                    <FilterPanel
-                        selectedCategories={selectedCategories}
-                        selectedStates={selectedStates}
-                        needsApprovalFilter={needsApprovalFilter}
-                        sortOption={sortOption}
-                        activeFilterCount={activeFilterCount}
-                        onToggleCategory={toggleCategory}
-                        onToggleState={toggleState}
-                        onToggleNeedsApproval={() => setNeedsApprovalFilter(!needsApprovalFilter)}
-                        onSortChange={setSortOption}
-                        onClearAll={clearAllFilters}
-                        canSeeNeedsApprovalFilter={canSeeNeedsApprovalFilter(user.name)}
-                        approvalFilterLabel={getApprovalFilterLabel(user.name)}
-                    />
+                        <FilterPanel
+                            selectedCategories={selectedCategories}
+                            selectedStates={selectedStates}
+                            needsApprovalFilter={needsApprovalFilter}
+                            sortOption={sortOption}
+                            activeFilterCount={activeFilterCount}
+                            onToggleCategory={toggleCategory}
+                            onToggleState={toggleState}
+                            onToggleNeedsApproval={() => setNeedsApprovalFilter(!needsApprovalFilter)}
+                            onSortChange={setSortOption}
+                            onClearAll={clearAllFilters}
+                            canSeeNeedsApprovalFilter={canSeeNeedsApprovalFilter(user.name)}
+                            approvalFilterLabel={getApprovalFilterLabel(user.name)}
+                        />
+                    </div>
+
+                    {/* Purchases List */}
+                    <div className="md:px-0 px-0">
+                        <PurchaseList
+                            purchases={purchases}
+                            filteredPurchases={filteredPurchases}
+                            loading={loading}
+                            error={error}
+                            isDirector={isDirector}
+                            editingShipping={editingShipping}
+                            shippingValue={shippingValue}
+                            onShippingEdit={handleShippingEdit}
+                            onShippingSave={handleShippingSave}
+                            onShippingCancel={handleShippingCancel}
+                            onShippingValueChange={setShippingValue}
+                            onStateChange={handleStateChange}
+                            onPurchaseClick={setSelectedPurchase}
+                            onRetry={loadPurchases}
+                        />
+                    </div>
+
+                    {/* Modals */}
+                    {showCreateForm && (
+                        <RequestForm
+                            user={user}
+                            onClose={() => setShowCreateForm(false)}
+                            onCreated={loadPurchases}
+                            presetFields={{ 'State': 'Pending Approval' }}
+                        />
+                    )}
+
+                    {selectedPurchase && (
+                        <PurchaseDetailModal
+                            purchase={selectedPurchase}
+                            user={user}
+                            validation={validation}
+                            onClose={() => setSelectedPurchase(null)}
+                            onUpdate={loadPurchases}
+                        />
+                    )}
                 </div>
-
-                {/* Purchases List */}
-                <PurchaseList
-                    purchases={purchases}
-                    filteredPurchases={filteredPurchases}
-                    loading={loading}
-                    error={error}
-                    isDirector={isDirector}
-                    editingShipping={editingShipping}
-                    shippingValue={shippingValue}
-                    onShippingEdit={handleShippingEdit}
-                    onShippingSave={handleShippingSave}
-                    onShippingCancel={handleShippingCancel}
-                    onShippingValueChange={setShippingValue}
-                    onStateChange={handleStateChange}
-                    onPurchaseClick={setSelectedPurchase}
-                    onRetry={loadPurchases}
-                />
-
-                {/* Modals */}
-                {showCreateForm && (
-                    <RequestForm
-                        user={user}
-                        onClose={() => setShowCreateForm(false)}
-                        onCreated={loadPurchases}
-                        presetFields={{ 'State': 'Pending Approval' }}
-                    />
-                )}
-
-                {selectedPurchase && (
-                    <PurchaseDetailModal
-                        purchase={selectedPurchase}
-                        user={user}
-                        validation={validation}
-                        onClose={() => setSelectedPurchase(null)}
-                        onUpdate={loadPurchases}
-                    />
-                )}
             </div>
         </div>
     );

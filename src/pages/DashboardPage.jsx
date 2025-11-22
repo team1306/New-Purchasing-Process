@@ -157,6 +157,15 @@ export default function Dashboard({ user, onSignOut }) {
                 updates['Date Purchased'] = `${year}-${month}-${day}`;
             }
 
+            // If changing to "Received", set the Date Received to today
+            if (newState === 'Received') {
+                const now = new Date();
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0'); // months are 0-indexed
+                const day = String(now.getDate()).padStart(2, '0');
+                updates['Date Received'] = `${year}-${month}-${day}`;
+            }
+
             // Update all selected purchases
             await Promise.all(
                 selectedPurchases.map(purchase =>

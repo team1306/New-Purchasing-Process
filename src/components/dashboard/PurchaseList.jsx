@@ -1,5 +1,6 @@
 import { Package } from 'lucide-react';
 import PurchaseCardWrapper from './PurchaseCardWrapper';
+import BulkActionBar from './BulkActionBar';
 
 export default function PurchaseList({
                                          purchases,
@@ -15,7 +16,11 @@ export default function PurchaseList({
                                          onShippingValueChange,
                                          onStateChange,
                                          onPurchaseClick,
-                                         onRetry
+                                         onRetry,
+                                         selectionMode,
+                                         selectedPurchases,
+                                         onToggleSelect,
+                                         onBulkStateChange
                                      }) {
     if (loading) {
         return (
@@ -66,26 +71,46 @@ export default function PurchaseList({
         );
     }
 
+    // Determine which items can be selected (same state, and have available transitions)
+    const firstSelectedPurchase = selectedPurchases.length > 0 ? selectedPurchases[0] : null;
+    const selectedState = firstSelectedPurchase ? firstSelectedPurchase['State'] : null;
+
     return (
         <>
+            {/* Bulk Action Bar */}
+            {selectionMode && selectedPurchases.length > 0 && (
+                <BulkActionBar
+                    selectedPurchases={selectedPurchases}
+                    onBulkStateChange={onBulkStateChange}
+                />
+            )}
             <div className="bg-white md:rounded-2xl shadow-2xl overflow-hidden animate-fadeIn">
                 <div className="divide-y divide-gray-200">
-                    {filteredPurchases.map((purchase, index) => (
-                        <PurchaseCardWrapper
-                            key={purchase['Request ID'] || index}
-                            purchase={purchase}
-                            index={index}
-                            isDirector={isDirector}
-                            editingShipping={editingShipping}
-                            shippingValue={shippingValue}
-                            onShippingEdit={onShippingEdit}
-                            onShippingSave={onShippingSave}
-                            onShippingCancel={onShippingCancel}
-                            onShippingValueChange={onShippingValueChange}
-                            onStateChange={onStateChange}
-                            onClick={onPurchaseClick}
-                        />
-                    ))}
+                    {filteredPurchases.map((purchase, index) => {
+                        const isSelected = selectedPurchases.some(p => p['Request ID'] === purchase['Request ID']);
+                        const selectionDisabled = selectionMode && selectedState && purchase['State'] !== selectedState;
+
+                        return (
+                            <PurchaseCardWrapper
+                                key={purchase['Request ID'] || index}
+                                purchase={purchase}
+                                index={index}
+                                isDirector={isDirector}
+                                editingShipping={editingShipping}
+                                shippingValue={shippingValue}
+                                onShippingEdit={onShippingEdit}
+                                onShippingSave={onShippingSave}
+                                onShippingCancel={onShippingCancel}
+                                onShippingValueChange={onShippingValueChange}
+                                onStateChange={onStateChange}
+                                onClick={onPurchaseClick}
+                                selectionMode={selectionMode}
+                                isSelected={isSelected}
+                                onToggleSelect={onToggleSelect}
+                                selectionDisabled={selectionDisabled}
+                            />
+                        );
+                    })}
                 </div>
             </div>
 

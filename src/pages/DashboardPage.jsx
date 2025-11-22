@@ -36,6 +36,10 @@ export default function Dashboard({ user, onSignOut }) {
     const [editingShipping, setEditingShipping] = useState(null);
     const [shippingValue, setShippingValue] = useState('');
 
+    // Multi-select state
+    const [selectionMode, setSelectionMode] = useState(false);
+    const [selectedPurchases, setSelectedPurchases] = useState([]);
+
     // Apply filters and sorting
     const filteredPurchases = applyFiltersAndSort(purchases, {
         searchQuery,
@@ -59,9 +63,24 @@ export default function Dashboard({ user, onSignOut }) {
         }
     }, [purchases, selectedPurchase]);
 
+    // Clear selection when leaving selection mode
+    useEffect(() => {
+        if (!selectionMode) {
+            setSelectedPurchases([]);
+        }
+    }, [selectionMode]);
+
     const handleStateChange = async (purchase, newState) => {
         try {
-            await updatePurchase(purchase['Request ID'], { 'State': newState });
+            const updates = { 'State': newState };
+
+            // If changing to "Purchased", set the Date Purchased to today
+            if (newState === 'Purchased') {
+                const today = new Date().toISOString().split('T')[0];
+                updates['Date Purchased'] = today;
+            }
+
+            await updatePurchase(purchase['Request ID'], updates);
         } catch (err) {
             await showError('Failed to update state. Please try again.');
         }
@@ -97,6 +116,62 @@ export default function Dashboard({ user, onSignOut }) {
         setShippingValue('');
     };
 
+    const handleToggleSelectionMode = () => {
+        setSelectionMode(!selectionMode);
+    };
+
+    const handleToggleSelect = (purchase) => {
+        setSelectedPurchases(prev => {
+            const isSelected = prev.some(p => p['Request ID'] === purchase['Request ID']);
+
+            if (isSelected) {
+                // Deselect
+                return prev.filter(p => p['Request ID'] !== purchase['Request ID']);
+            } else {
+                // Select - only allow if same state or first selection
+                if (prev.length === 0 || prev[0]['State'] === purchase['State']) {
+                    return [...prev, purchase];
+                }
+                return prev;
+            }
+        });
+    };
+
+    const handleBulkStateChange = async (newState) => {
+        const confirmed = await showConfirm(
+            `Change ${selectedPurchases.length} item${selectedPurchases.length !== 1 ? 's' : ''} to "${newState}"?`,
+            { confirmText: 'Change All', cancelText: 'Cancel' }
+        );
+
+        if (!confirmed) return;
+
+        try {
+            const updates = { 'State': newState };
+
+            // If changing to "Purchased", set the Date Purchased to today
+            if (newState === 'Purchased') {
+                const now = new Date();
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0'); // months are 0-indexed
+                const day = String(now.getDate()).padStart(2, '0');
+                updates['Date Purchased'] = `${year}-${month}-${day}`;
+            }
+
+            // Update all selected purchases
+            await Promise.all(
+                selectedPurchases.map(purchase =>
+                    updatePurchase(purchase['Request ID'], updates)
+                )
+            );
+
+            // Clear selection and exit selection mode
+            setSelectedPurchases([]);
+            setSelectionMode(false);
+        } catch (err) {
+            await showError('Failed to update some items. Please try again.');
+        }
+    };
+
     const isDirector = validation['Directors']?.includes(user.name);
 
     return (
@@ -112,27 +187,34 @@ export default function Dashboard({ user, onSignOut }) {
                             onRefresh={refreshPurchases}
                             onCreateRequest={() => setShowCreateForm(true)}
                             refreshing={refreshing}
+                            selectionMode={selectionMode}
+                            onToggleSelectionMode={handleToggleSelectionMode}
+                            selectedCount={selectedPurchases.length}
                         />
 
-                        <SearchBar
-                            value={searchQuery}
-                            onChange={setSearchQuery}
-                        />
+                        {!selectionMode && (
+                            <>
+                                <SearchBar
+                                    value={searchQuery}
+                                    onChange={setSearchQuery}
+                                />
 
-                        <FilterPanel
-                            selectedCategories={selectedCategories}
-                            selectedStates={selectedStates}
-                            needsApprovalFilter={needsApprovalFilter}
-                            sortOption={sortOption}
-                            activeFilterCount={activeFilterCount}
-                            onToggleCategory={toggleCategory}
-                            onToggleState={toggleState}
-                            onToggleNeedsApproval={() => setNeedsApprovalFilter(!needsApprovalFilter)}
-                            onSortChange={setSortOption}
-                            onClearAll={clearAllFilters}
-                            canSeeNeedsApprovalFilter={canSeeNeedsApprovalFilter(user.name)}
-                            approvalFilterLabel={getApprovalFilterLabel(user.name)}
-                        />
+                                <FilterPanel
+                                    selectedCategories={selectedCategories}
+                                    selectedStates={selectedStates}
+                                    needsApprovalFilter={needsApprovalFilter}
+                                    sortOption={sortOption}
+                                    activeFilterCount={activeFilterCount}
+                                    onToggleCategory={toggleCategory}
+                                    onToggleState={toggleState}
+                                    onToggleNeedsApproval={() => setNeedsApprovalFilter(!needsApprovalFilter)}
+                                    onSortChange={setSortOption}
+                                    onClearAll={clearAllFilters}
+                                    canSeeNeedsApprovalFilter={canSeeNeedsApprovalFilter(user.name)}
+                                    approvalFilterLabel={getApprovalFilterLabel(user.name)}
+                                />
+                            </>
+                        )}
                     </div>
 
                     {/* Purchases List */}
@@ -152,6 +234,10 @@ export default function Dashboard({ user, onSignOut }) {
                             onStateChange={handleStateChange}
                             onPurchaseClick={setSelectedPurchase}
                             onRetry={loadPurchases}
+                            selectionMode={selectionMode}
+                            selectedPurchases={selectedPurchases}
+                            onToggleSelect={handleToggleSelect}
+                            onBulkStateChange={handleBulkStateChange}
                         />
                     </div>
 
@@ -165,7 +251,7 @@ export default function Dashboard({ user, onSignOut }) {
                         />
                     )}
 
-                    {selectedPurchase && (
+                    {selectedPurchase && !selectionMode && (
                         <PurchaseDetailModal
                             purchase={selectedPurchase}
                             user={user}

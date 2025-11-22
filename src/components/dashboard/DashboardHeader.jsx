@@ -1,4 +1,4 @@
-import { LogOut, RefreshCw, Plus, Menu, X } from 'lucide-react';
+import { LogOut, RefreshCw, Plus, Menu, X, CheckSquare, Square } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 export default function DashboardHeader({
@@ -6,7 +6,10 @@ export default function DashboardHeader({
                                             onSignOut,
                                             onRefresh,
                                             onCreateRequest,
-                                            refreshing
+                                            refreshing,
+                                            selectionMode,
+                                            onToggleSelectionMode,
+                                            selectedCount
                                         }) {
     const [showMenu, setShowMenu] = useState(false);
     const [isAnimating, setIsAnimating] = useState(false);
@@ -19,7 +22,7 @@ export default function DashboardHeader({
 
     const handleCloseMenu = () => {
         setIsAnimating(false);
-        setTimeout(() => setShowMenu(false), 300); // Match animation duration
+        setTimeout(() => setShowMenu(false), 300);
     };
 
     return (
@@ -36,7 +39,11 @@ export default function DashboardHeader({
                         />
                         <div>
                             <h1 className="text-lg font-bold">Dashboard</h1>
-                            <p className="text-xs text-blue-100">Purchase Requests</p>
+                            {selectionMode ? (
+                                <p className="text-xs text-blue-100">{selectedCount} selected</p>
+                            ) : (
+                                <p className="text-xs text-blue-100">Purchase Requests</p>
+                            )}
                         </div>
                     </div>
 
@@ -57,6 +64,17 @@ export default function DashboardHeader({
                         }`}
                     >
                         <div className="px-4 pb-4 space-y-2 border-t border-white/20 pt-4">
+                            <button
+                                onClick={() => {
+                                    onToggleSelectionMode();
+                                    handleCloseMenu();
+                                }}
+                                className="w-full flex items-center justify-center gap-2 bg-purple-500 hover:bg-purple-600 text-white py-3 px-4 rounded-lg font-semibold transition shadow-lg"
+                            >
+                                {selectionMode ? <Square size={20} /> : <CheckSquare size={20} />}
+                                <span>{selectionMode ? 'Cancel Selection' : 'Multi-Select'}</span>
+                            </button>
+
                             <button
                                 onClick={() => {
                                     onCreateRequest();
@@ -106,8 +124,21 @@ export default function DashboardHeader({
                     <div className="flex items-center gap-4">
                         <div>
                             <h1 className="text-3xl font-bold mb-1">Dashboard</h1>
-                            <p className="text-blue-100">Purchase Requests</p>
+                            {selectionMode ? (
+                                <p className="text-blue-100">{selectedCount} item{selectedCount !== 1 ? 's' : ''} selected</p>
+                            ) : (
+                                <p className="text-blue-100">Purchase Requests</p>
+                            )}
                         </div>
+
+                        <button
+                            onClick={onToggleSelectionMode}
+                            className="bg-purple-500 hover:bg-purple-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-200 flex items-center gap-2"
+                            title={selectionMode ? "Cancel selection" : "Multi-select mode"}
+                        >
+                            {selectionMode ? <Square className="w-5 h-5" /> : <CheckSquare className="w-5 h-5" />}
+                            {selectionMode ? 'Cancel Selection' : 'Multi-Select'}
+                        </button>
 
                         <button
                             onClick={onRefresh}

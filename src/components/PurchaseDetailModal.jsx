@@ -10,7 +10,7 @@ import EditActionsFooter from './EditActionsFooter';
 import { useModalDrag } from '../hooks/useModalDrag';
 import { useApprovalLogic } from '../hooks/useApprovalLogic';
 
-export default function PurchaseDetailModal({ purchase, user, validation, onClose, onUpdate }) {
+export default function PurchaseDetailModal({ purchase, user, validation, onClose, onUpdate, existingPurchases = [] }) {
     const [isEditing, setIsEditing] = useState(false);
     const [editedPurchase, setEditedPurchase] = useState({});
     const [approvalLoading, setApprovalLoading] = useState(false);
@@ -247,6 +247,7 @@ export default function PurchaseDetailModal({ purchase, user, validation, onClos
                         editedPurchase={editedPurchase}
                         originalTier={originalTier}
                         onEditChange={handleEditChange}
+                        existingPurchases={existingPurchases}
                     />
 
                     <ApprovalSection

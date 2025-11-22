@@ -5,6 +5,7 @@ import FilterPanel from '../components/dashboard/FilterPanel';
 import PurchaseList from '../components/dashboard/PurchaseList';
 import PurchaseDetailModal from '../components/PurchaseDetailModal';
 import RequestForm from '../components/RequestForm';
+import GroupsPage from './GroupsPage';
 import { usePurchases } from '../hooks/usePurchases';
 import { useValidation } from '../hooks/useValidation';
 import { useFilters } from '../hooks/useFilters';
@@ -40,6 +41,12 @@ export default function Dashboard({ user, onSignOut }) {
     const [selectionMode, setSelectionMode] = useState(false);
     const [selectedPurchases, setSelectedPurchases] = useState([]);
 
+    // View mode state
+    const [viewMode, setViewMode] = useState(() => {
+        const saved = localStorage.getItem('view_mode');
+        return saved || 'list';
+    });
+
     // Apply filters and sorting
     const filteredPurchases = applyFiltersAndSort(purchases, {
         searchQuery,
@@ -70,14 +77,31 @@ export default function Dashboard({ user, onSignOut }) {
         }
     }, [selectionMode]);
 
+    // Save view mode preference
+    useEffect(() => {
+        localStorage.setItem('view_mode', viewMode);
+    }, [viewMode]);
+
     const handleStateChange = async (purchase, newState) => {
         try {
             const updates = { 'State': newState };
 
-            // If changing to "Purchased", set the Date Purchased to today
+            // If changing to "Purchased", set the Date Purchased to today (local timezone)
             if (newState === 'Purchased') {
-                const today = new Date().toISOString().split('T')[0];
-                updates['Date Purchased'] = today;
+                const today = new Date();
+                const localDate = new Date(today.getTime() - (today.getTimezoneOffset() * 60000))
+                    .toISOString()
+                    .split('T')[0];
+                updates['Date Purchased'] = localDate;
+            }
+
+            // If changing to "Received", set the Date Received to today (local timezone)
+            if (newState === 'Received') {
+                const today = new Date();
+                const localDate = new Date(today.getTime() - (today.getTimezoneOffset() * 60000))
+                    .toISOString()
+                    .split('T')[0];
+                updates['Date Received'] = localDate;
             }
 
             await updatePurchase(purchase['Request ID'], updates);
@@ -120,6 +144,12 @@ export default function Dashboard({ user, onSignOut }) {
         setSelectionMode(!selectionMode);
     };
 
+    const handleToggleViewMode = () => {
+        setViewMode(prev => prev === 'list' ? 'groups' : 'list');
+        setSelectionMode(false);
+        setSelectedPurchases([]);
+    };
+
     const handleToggleSelect = (purchase) => {
         setSelectedPurchases(prev => {
             const isSelected = prev.some(p => p['Request ID'] === purchase['Request ID']);
@@ -148,22 +178,22 @@ export default function Dashboard({ user, onSignOut }) {
         try {
             const updates = { 'State': newState };
 
-            // If changing to "Purchased", set the Date Purchased to today
+            // If changing to "Purchased", set the Date Purchased to today (local timezone)
             if (newState === 'Purchased') {
-                const now = new Date();
-                const year = now.getFullYear();
-                const month = String(now.getMonth() + 1).padStart(2, '0'); // months are 0-indexed
-                const day = String(now.getDate()).padStart(2, '0');
-                updates['Date Purchased'] = `${year}-${month}-${day}`;
+                const today = new Date();
+                const localDate = new Date(today.getTime() - (today.getTimezoneOffset() * 60000))
+                    .toISOString()
+                    .split('T')[0];
+                updates['Date Purchased'] = localDate;
             }
 
-            // If changing to "Received", set the Date Received to today
+            // If changing to "Received", set the Date Received to today (local timezone)
             if (newState === 'Received') {
-                const now = new Date();
-                const year = now.getFullYear();
-                const month = String(now.getMonth() + 1).padStart(2, '0'); // months are 0-indexed
-                const day = String(now.getDate()).padStart(2, '0');
-                updates['Date Received'] = `${year}-${month}-${day}`;
+                const today = new Date();
+                const localDate = new Date(today.getTime() - (today.getTimezoneOffset() * 60000))
+                    .toISOString()
+                    .split('T')[0];
+                updates['Date Received'] = localDate;
             }
 
             // Update all selected purchases
@@ -183,6 +213,28 @@ export default function Dashboard({ user, onSignOut }) {
 
     const isDirector = validation['Directors']?.includes(user.name);
 
+    // Render Groups View
+    if (viewMode === 'groups') {
+        return (
+            <GroupsPage
+                user={user}
+                onSignOut={onSignOut}
+                purchases={purchases}
+                validation={validation}
+                loading={loading}
+                error={error}
+                refreshing={refreshing}
+                onRefresh={refreshPurchases}
+                onRetry={loadPurchases}
+                onUpdatePurchase={updatePurchase}
+                onLoadPurchases={loadPurchases}
+                viewMode={viewMode}
+                onToggleViewMode={handleToggleViewMode}
+            />
+        );
+    }
+
+    // Render List View
     return (
         <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
             {/* Mobile: No padding, Desktop: Padding */}
@@ -199,6 +251,8 @@ export default function Dashboard({ user, onSignOut }) {
                             selectionMode={selectionMode}
                             onToggleSelectionMode={handleToggleSelectionMode}
                             selectedCount={selectedPurchases.length}
+                            viewMode={viewMode}
+                            onToggleViewMode={handleToggleViewMode}
                         />
 
                         {!selectionMode && (
@@ -257,6 +311,7 @@ export default function Dashboard({ user, onSignOut }) {
                             onClose={() => setShowCreateForm(false)}
                             onCreated={loadPurchases}
                             presetFields={{ 'State': 'Pending Approval' }}
+                            existingPurchases={purchases}
                         />
                     )}
 
@@ -267,6 +322,7 @@ export default function Dashboard({ user, onSignOut }) {
                             validation={validation}
                             onClose={() => setSelectedPurchase(null)}
                             onUpdate={loadPurchases}
+                            existingPurchases={purchases}
                         />
                     )}
                 </div>

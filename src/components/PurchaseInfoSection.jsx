@@ -1,30 +1,27 @@
 import { ExternalLink, AlertTriangle } from 'lucide-react';
 import { formatDate, formatCurrency, parseCurrency, calculateTotalCost, getRequestTier } from '../utils/purchaseHelpers';
 import { CATEGORIES } from '../utils/purchaseHelpers';
+import GroupNameAutocomplete from './groups/GroupNameAutoComplete.jsx';
 
 export default function PurchaseInfoSection({
                                                 purchase,
                                                 isEditing,
                                                 editedPurchase,
                                                 originalTier,
-                                                onEditChange
+                                                onEditChange,
+                                                existingPurchases = []
                                             }) {
+    // Extract unique group names from existing purchases
+    const existingGroups = [...new Set(
+        existingPurchases
+            .map(p => p['Group Name'])
+            .filter(name => name && name.trim() !== '')
+    )].sort();
+
     return (
         <>
-            {/* Basic Info Grid */}
+            {/* Category and Group Name Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
-                <div className="bg-gray-50 p-3 md:p-4 rounded-lg">
-                    <p className="text-xs md:text-sm text-gray-500 mb-1">Date Requested</p>
-                    <p className="font-semibold text-sm md:text-base text-gray-800">
-                        {formatDate(purchase['Date Requested'])}
-                    </p>
-                </div>
-                <div className="bg-gray-50 p-3 md:p-4 rounded-lg">
-                    <p className="text-xs md:text-sm text-gray-500 mb-1">Requester</p>
-                    <p className="font-semibold text-sm md:text-base text-gray-800 truncate">
-                        {purchase['Requester'] || 'N/A'}
-                    </p>
-                </div>
                 <div className="bg-gray-50 p-3 md:p-4 rounded-lg">
                     <p className="text-xs md:text-sm text-gray-500 mb-1">Category</p>
                     {isEditing ? (
@@ -45,6 +42,41 @@ export default function PurchaseInfoSection({
                         </p>
                     )}
                 </div>
+                <div className="bg-gray-50 p-3 md:p-4 rounded-lg">
+                    <p className="text-xs md:text-sm text-gray-500 mb-1">Group Name</p>
+                    {isEditing ? (
+                        <GroupNameAutocomplete
+                            value={editedPurchase['Group Name'] || ''}
+                            onChange={(value) => onEditChange('Group Name', value)}
+                            existingGroups={existingGroups}
+                            placeholder="Optional"
+                        />
+                    ) : (
+                        <p className="font-semibold text-sm md:text-base text-gray-800">
+                            {purchase['Group Name'] || 'None'}
+                        </p>
+                    )}
+                </div>
+            </div>
+
+            {/* Date Requested and Requester Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
+                <div className="bg-gray-50 p-3 md:p-4 rounded-lg">
+                    <p className="text-xs md:text-sm text-gray-500 mb-1">Date Requested</p>
+                    <p className="font-semibold text-sm md:text-base text-gray-800">
+                        {formatDate(purchase['Date Requested'])}
+                    </p>
+                </div>
+                <div className="bg-gray-50 p-3 md:p-4 rounded-lg">
+                    <p className="text-xs md:text-sm text-gray-500 mb-1">Requester</p>
+                    <p className="font-semibold text-sm md:text-base text-gray-800 truncate">
+                        {purchase['Requester'] || 'N/A'}
+                    </p>
+                </div>
+            </div>
+
+            {/* Quantity Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
                 <div className="bg-gray-50 p-3 md:p-4 rounded-lg">
                     <p className="text-xs md:text-sm text-gray-500 mb-1">Quantity</p>
                     {isEditing ? (

@@ -3,6 +3,7 @@ import { X, PlusCircle } from 'lucide-react';
 import { createPurchase } from '../utils/googleSheets.js';
 import { getRefreshedAccessToken } from '../utils/googleAuth.js';
 import { useAlert } from './AlertContext';
+import GroupNameAutocomplete from './groups/GroupNameAutoComplete.jsx';
 
 const CATEGORIES = [
     'Robot',
@@ -15,19 +16,37 @@ const CATEGORIES = [
     'Other'
 ];
 
-export default function RequestForm({ user, onClose, onCreated, presetFields = {} }) {
+export default function RequestForm({ user, onClose, onCreated, presetFields = {}, existingPurchases = [] }) {
     const { showError } = useAlert();
+
+    // Get today's date in local timezone
+    const getLocalDate = () => {
+        const today = new Date();
+        const localDate = new Date(today.getTime() - (today.getTimezoneOffset() * 60000))
+            .toISOString()
+            .split('T')[0];
+        return localDate;
+    };
+
+    // Extract unique group names from existing purchases
+    const existingGroups = [...new Set(
+        existingPurchases
+            .map(p => p['Group Name'])
+            .filter(name => name && name.trim() !== '')
+    )].sort();
+
     const [newRequest, setNewRequest] = useState({
         'Request ID': '',
         'Item Description': '',
         'Item Link': '',
         'Category': '',
+        'Group Name': '',
         'Quantity': '',
         'Unit Price': '',
         'Shipping': '',
         'Package Size': '',
         'Comments': '',
-        'Date Requested': new Date().toISOString().split('T')[0],
+        'Date Requested': getLocalDate(),
         'Requester': 'N/A',
         'State': 'Pending Approval',
         ...presetFields
@@ -51,7 +70,7 @@ export default function RequestForm({ user, onClose, onCreated, presetFields = {
 
     const handleClose = () => {
         setIsClosing(true);
-        setTimeout(() => onClose(), 300); // Match animation duration
+        setTimeout(() => onClose(), 300);
     };
 
     const handleCreateRequest = async () => {
@@ -77,7 +96,6 @@ export default function RequestForm({ user, onClose, onCreated, presetFields = {
             }`}
             onClick={handleClose}
         >
-            {/* Mobile: Full screen, Desktop: Modal */}
             <div
                 className={`
                     bg-white shadow-2xl w-full h-full overflow-y-auto
@@ -144,23 +162,37 @@ export default function RequestForm({ user, onClose, onCreated, presetFields = {
                         />
                     </div>
 
-                    {/* Category */}
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
-                            Category <span className="text-red-500">*</span>
-                        </label>
-                        <select
-                            value={newRequest['Category']}
-                            onChange={(e) =>
-                                setNewRequest(prev => ({ ...prev, 'Category': e.target.value }))
-                            }
-                            className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-700 transition text-base"
-                        >
-                            <option value="">Select a category</option>
-                            {CATEGORIES.map(cat => (
-                                <option key={cat} value={cat}>{cat}</option>
-                            ))}
-                        </select>
+                    {/* Category and Group Name */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                Category <span className="text-red-500">*</span>
+                            </label>
+                            <select
+                                value={newRequest['Category']}
+                                onChange={(e) =>
+                                    setNewRequest(prev => ({ ...prev, 'Category': e.target.value }))
+                                }
+                                className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-700 transition text-base"
+                            >
+                                <option value="">Select a category</option>
+                                {CATEGORIES.map(cat => (
+                                    <option key={cat} value={cat}>{cat}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                Group Name <span className="text-gray-400 text-xs font-normal">(Optional)</span>
+                            </label>
+                            <GroupNameAutocomplete
+                                value={newRequest['Group Name']}
+                                onChange={(value) => setNewRequest(prev => ({ ...prev, 'Group Name': value }))}
+                                existingGroups={existingGroups}
+                                placeholder="e.g., Robot Build 2025"
+                            />
+                        </div>
                     </div>
 
                     {/* Quantity and Unit Price */}

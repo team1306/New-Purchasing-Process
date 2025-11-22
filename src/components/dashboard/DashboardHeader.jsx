@@ -1,4 +1,4 @@
-import { LogOut, RefreshCw, Plus, Menu, X, CheckSquare, Square } from 'lucide-react';
+import { LogOut, RefreshCw, Plus, Menu, X, CheckSquare, Square, List, LayoutGrid } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 export default function DashboardHeader({
@@ -9,7 +9,9 @@ export default function DashboardHeader({
                                             refreshing,
                                             selectionMode,
                                             onToggleSelectionMode,
-                                            selectedCount
+                                            selectedCount,
+                                            viewMode,
+                                            onToggleViewMode
                                         }) {
     const [showMenu, setShowMenu] = useState(false);
     const [isAnimating, setIsAnimating] = useState(false);
@@ -64,6 +66,17 @@ export default function DashboardHeader({
                         }`}
                     >
                         <div className="px-4 pb-4 space-y-2 border-t border-white/20 pt-4">
+                            <button
+                                onClick={() => {
+                                    onToggleViewMode();
+                                    handleCloseMenu();
+                                }}
+                                className="w-full flex items-center justify-center gap-2 bg-indigo-500 hover:bg-indigo-600 text-white py-3 px-4 rounded-lg font-semibold transition shadow-lg"
+                            >
+                                {viewMode === 'list' ? <LayoutGrid size={20} /> : <List size={20} />}
+                                <span>{viewMode === 'list' ? 'Group View' : 'List View'}</span>
+                            </button>
+
                             <button
                                 onClick={() => {
                                     onToggleSelectionMode();
@@ -127,9 +140,18 @@ export default function DashboardHeader({
                             {selectionMode ? (
                                 <p className="text-blue-100">{selectedCount} item{selectedCount !== 1 ? 's' : ''} selected</p>
                             ) : (
-                                <p className="text-blue-100">Purchase Requests</p>
+                                <p className="text-blue-100">{viewMode === 'list' ? 'List View' : 'Group View'}</p>
                             )}
                         </div>
+
+                        <button
+                            onClick={onToggleViewMode}
+                            className="bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-200 flex items-center gap-2"
+                            title={viewMode === 'list' ? "Switch to Group View" : "Switch to List View"}
+                        >
+                            {viewMode === 'list' ? <LayoutGrid className="w-5 h-5" /> : <List className="w-5 h-5" />}
+                            {viewMode === 'list' ? 'Group View' : 'List View'}
+                        </button>
 
                         <button
                             onClick={onToggleSelectionMode}

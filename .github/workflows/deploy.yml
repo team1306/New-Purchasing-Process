@@ -39,6 +39,11 @@ jobs:
         run: npm ci
       - name: Build
         run: npm run build
+        env: 
+          VITE_ID: ${{ secrets.VITE_ID }}
+          VITE_PICKER_ID: ${{ secrets.VITE_PICKER_ID }}
+          VITE_PROJECT: ${{ secrets.VITE_PROJECT }}
+          VITE_SPREADSHEET: ${{ secrets.VITE_SPREADSHEET }}
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact

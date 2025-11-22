@@ -51,6 +51,12 @@ export default function PurchaseDetailModal({ purchase, user, validation, onClos
         }
     }, [purchase, isEditing]);
 
+    useEffect(() => {
+        const onKey = (e) => { if (e.key === 'Escape') handleClose(); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, []);
+
     // Prevent background scroll
     useEffect(() => {
         document.body.style.overflow = 'hidden';

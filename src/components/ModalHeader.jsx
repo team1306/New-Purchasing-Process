@@ -22,7 +22,7 @@ export default function ModalHeader({
             <div className="p-4 md:p-6">
                 <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                        <h2 className="text-lg md:text-2xl font-bold mb-1 line-clamp-2">
+                        <h2 className="text-lg md:text-2xl font-bold mb-1 truncate">
                             {purchase['Item Description']}
                         </h2>
                         <div className="flex items-center gap-2 flex-wrap">

@@ -1,21 +1,32 @@
 import { X, Pencil, Trash2, Loader, XCircle } from 'lucide-react';
+import { forwardRef } from 'react';
 import StateBadge from './StateBadge';
 
-export default function ModalHeader({
-                                        purchase,
-                                        isEditing,
-                                        savingLoading,
-                                        canDelete,
-                                        canEdit,
-                                        onClose,
-                                        onDelete,
-                                        onToggleEdit,
-                                        onCancelEdit
-                                    }) {
+const ModalHeader = forwardRef(({
+                                    purchase,
+                                    isEditing,
+                                    savingLoading,
+                                    canDelete,
+                                    canEdit,
+                                    onClose,
+                                    onDelete,
+                                    onToggleEdit,
+                                    onCancelEdit,
+                                    onTouchStart,
+                                    onTouchMove,
+                                    onTouchEnd
+                                }, ref) => {
     return (
-        <div className="sticky top-0 z-30 bg-gradient-to-r from-red-700 to-orange-800 text-white shadow-lg">
+        <div
+            ref={ref}
+            className="sticky top-0 z-30 bg-gradient-to-r from-red-700 to-orange-800 text-white shadow-lg"
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+            onTouchEnd={onTouchEnd}
+            style={{ touchAction: 'none' }}
+        >
             {/* Drag Handle (Mobile Only) */}
-            <div className="md:hidden flex justify-center pt-2 pb-1">
+            <div className="md:hidden flex justify-center pt-3 pb-1">
                 <div className="w-12 h-1 bg-white/60 rounded-full"></div>
             </div>
 
@@ -92,4 +103,8 @@ export default function ModalHeader({
             </div>
         </div>
     );
-}
+});
+
+ModalHeader.displayName = 'ModalHeader';
+
+export default ModalHeader;

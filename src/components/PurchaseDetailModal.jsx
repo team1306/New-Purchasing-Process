@@ -28,11 +28,11 @@ export default function PurchaseDetailModal({ purchase, user, validation, onClos
         setIsClosing(true);
         setTimeout(() => {
             onClose();
-        }, 300); // matches animation duration
+        }, 1);
     };
 
     // Custom hooks for drag functionality - pass handleClose instead of onClose
-    const { translateY, onTouchStart, onTouchMove, onTouchEnd } = useModalDrag(sheetRef, scrollRef, handleClose);
+    const { translateY, onTouchStart, onTouchMove, onTouchEnd } = useModalDrag(sheetRef, scrollRef, headerRef, handleClose);
     // Custom hook for approval logic
     const {
         canApproveRequest,
@@ -50,12 +50,6 @@ export default function PurchaseDetailModal({ purchase, user, validation, onClos
             setOriginalTier(getRequestTier(totalCost));
         }
     }, [purchase, isEditing]);
-
-    useEffect(() => {
-        const onKey = (e) => { if (e.key === 'Escape') handleClose(); };
-        window.addEventListener('keydown', onKey);
-        return () => window.removeEventListener('keydown', onKey);
-    }, []);
 
     // Prevent background scroll
     useEffect(() => {
@@ -201,8 +195,6 @@ export default function PurchaseDetailModal({ purchase, user, validation, onClos
             style={{
                 backgroundColor: isClosing ? 'transparent' : 'rgba(0, 0, 0, 0.5)',
                 transition: 'background-color 300ms ease-out',
-                paddingTop: "env(safe-area-inset-top)",
-                paddingBottom: "env(safe-area-inset-bottom)",
             }}
             onClick={handleClose}
             aria-modal="true"
@@ -211,9 +203,6 @@ export default function PurchaseDetailModal({ purchase, user, validation, onClos
             <div
                 ref={sheetRef}
                 onClick={(e) => e.stopPropagation()}
-                onTouchStart={onTouchStart}
-                onTouchMove={onTouchMove}
-                onTouchEnd={onTouchEnd}
                 style={{
                     transform: isClosing
                         ? (window.innerWidth < 768
@@ -223,12 +212,13 @@ export default function PurchaseDetailModal({ purchase, user, validation, onClos
                     opacity: isClosing ? 0 : 1,
                     transition: isClosing
                         ? "all 300ms cubic-bezier(.22,.9,.32,1)"
-                        : "transform 180ms cubic-bezier(.22,.9,.32,1), opacity 300ms ease-out",
-                    touchAction: "pan-y",
+                        : translateY === 0 ? "transform 180ms cubic-bezier(.22,.9,.32,1), opacity 300ms ease-out" : "none",
+                    touchAction: "none",
+                    paddingTop: window.innerWidth < 768 ? "env(safe-area-inset-top)" : "0",
                 }}
                 className="bg-white shadow-2xl w-full rounded-t-2xl md:rounded-2xl
                md:max-w-3xl md:h-auto md:max-h-[90vh]
-               max-h-[95vh] overflow-hidden flex flex-col"
+               h-full overflow-hidden flex flex-col"
             >
                 <ModalHeader
                     ref={headerRef}
@@ -241,6 +231,9 @@ export default function PurchaseDetailModal({ purchase, user, validation, onClos
                     onDelete={handleDeletePurchase}
                     onToggleEdit={handleToggleEdit}
                     onCancelEdit={handleCancelEdit}
+                    onTouchStart={onTouchStart}
+                    onTouchMove={onTouchMove}
+                    onTouchEnd={onTouchEnd}
                 />
 
                 <div

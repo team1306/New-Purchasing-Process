@@ -93,6 +93,11 @@
     }
 }
 
+:root {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+}
+
 .animate-fadeIn {
     animation: fadeIn 0.2s ease-out;
 }

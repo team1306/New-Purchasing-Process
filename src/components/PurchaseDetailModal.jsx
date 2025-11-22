@@ -194,7 +194,9 @@ export default function PurchaseDetailModal({ purchase, user, validation, onClos
             }`}
             style={{
                 backgroundColor: isClosing ? 'transparent' : 'rgba(0, 0, 0, 0.5)',
-                transition: 'background-color 300ms ease-out'
+                transition: 'background-color 300ms ease-out',
+                paddingTop: "env(safe-area-inset-top)",
+                paddingBottom: "env(safe-area-inset-bottom)",
             }}
             onClick={handleClose}
             aria-modal="true"
@@ -213,7 +215,6 @@ export default function PurchaseDetailModal({ purchase, user, validation, onClos
                             : `scale(0.95) translateY(${translateY}px)`)
                         : `translateY(${translateY}px) scale(1)`,
                     opacity: isClosing ? 0 : 1,
-                    paddingTop: "env(safe-area-inset-top)", // ⬅ keeps header below Chrome bar
                     transition: isClosing
                         ? "all 300ms cubic-bezier(.22,.9,.32,1)"
                         : "transform 180ms cubic-bezier(.22,.9,.32,1), opacity 300ms ease-out",

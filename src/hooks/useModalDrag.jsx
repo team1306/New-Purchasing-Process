@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import {useRef, useState} from 'react';
 
 export const useModalDrag = (sheetRef, scrollRef, onClose) => {
     const [translateY, setTranslateY] = useState(0);
@@ -6,6 +6,7 @@ export const useModalDrag = (sheetRef, scrollRef, onClose) => {
 
     const startYRef = useRef(0);
     const lastYRef = useRef(0);
+    const velocityRef = useRef(0);
 
     const onTouchStart = (e) => {
         if (!sheetRef.current) return;
@@ -14,7 +15,7 @@ export const useModalDrag = (sheetRef, scrollRef, onClose) => {
         const scrollEl = scrollRef.current;
 
         // Only allow drag when content is fully scrolled to top
-        const scrollAtTop = !scrollEl || scrollEl.scrollTop <= 0;
+        const scrollAtTop = !scrollEl || scrollEl.scrollTop <= 1;
         if (!scrollAtTop) return;
 
         startYRef.current = touch.clientY;
@@ -28,11 +29,10 @@ export const useModalDrag = (sheetRef, scrollRef, onClose) => {
         const touch = e.touches ? e.touches[0] : e;
         const deltaY = touch.clientY - startYRef.current;
 
-        // Only drag downward, and damp movement to reduce jitter
-        if (deltaY > 0) {
-            setTranslateY(deltaY * 0.9);
-            if (e.cancelable) e.preventDefault();
-        }
+        velocityRef.current = deltaY - translateY;
+
+        const damped = translateY * 0.15 + deltaY * 0.85;
+        setTranslateY(damped);
     };
 
     const onTouchEnd = () => {
@@ -41,45 +41,14 @@ export const useModalDrag = (sheetRef, scrollRef, onClose) => {
         setIsDragging(false);
 
         const delta = lastYRef.current - startYRef.current;
-        const threshold = window.innerHeight * 0.50; // must drag half screen to close
+        const threshold = window.innerHeight * 0.25; // must drag half screen to close
 
-        if (delta > threshold) {
-            // Trigger animated close via parent, not instant close
+        if (delta > threshold || velocityRef.current > 15) {
             onClose();
         } else {
             setTranslateY(0);
         }
     };
-
-    // Use pointer events for stability
-    useEffect(() => {
-        const el = sheetRef.current;
-        if (!el) return;
-
-        const handlePointerDown = (e) => {
-            if (window.innerWidth >= 768) return;
-            onTouchStart(e);
-        };
-        const handlePointerMove = (e) => {
-            if (!isDragging) return;
-            lastYRef.current = e.clientY;
-            onTouchMove(e);
-        };
-        const handlePointerUp = () => {
-            if (!isDragging) return;
-            onTouchEnd();
-        };
-
-        el.addEventListener("pointerdown", handlePointerDown);
-        window.addEventListener("pointermove", handlePointerMove);
-        window.addEventListener("pointerup", handlePointerUp);
-
-        return () => {
-            el.removeEventListener("pointerdown", handlePointerDown);
-            window.removeEventListener("pointermove", handlePointerMove);
-            window.removeEventListener("pointerup", handlePointerUp);
-        };
-    }, [isDragging]);
 
     return {
         translateY,

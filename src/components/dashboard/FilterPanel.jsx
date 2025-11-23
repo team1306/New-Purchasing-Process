@@ -1,5 +1,6 @@
 import { Filter, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { Button, Select } from '../ui';
 import { CATEGORIES, STATES } from '../../utils/purchaseHelpers';
 
 export default function FilterPanel({
@@ -28,11 +29,37 @@ export default function FilterPanel({
     const handleToggle = () => {
         if (expanded) {
             setIsAnimating(false);
-            setTimeout(() => setExpanded(false), 300); // Match animation duration
+            setTimeout(() => setExpanded(false), 300);
         } else {
             setExpanded(true);
         }
     };
+
+    const FilterButton = ({ active, onClick, children }) => (
+        <button
+            onClick={onClick}
+            className={`whitespace-nowrap px-3 py-2 rounded-lg text-sm font-medium transition duration-200 ${
+                active
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'bg-white text-gray-700 border border-gray-300 hover:border-blue-400'
+            }`}
+        >
+            {children}
+        </button>
+    );
+
+    const StateFilterButton = ({ active, onClick, children }) => (
+        <button
+            onClick={onClick}
+            className={`whitespace-nowrap px-3 py-2 rounded-lg text-sm font-medium transition duration-200 ${
+                active
+                    ? 'bg-indigo-600 text-white shadow-md'
+                    : 'bg-white text-gray-700 border border-gray-300 hover:border-indigo-400'
+            }`}
+        >
+            {children}
+        </button>
+    );
 
     return (
         <div className="border-b bg-gray-50">
@@ -46,8 +73,8 @@ export default function FilterPanel({
                     <span className="font-semibold text-gray-800">Filters & Sort</span>
                     {activeFilterCount > 0 && (
                         <span className="bg-blue-600 text-white text-xs font-semibold px-2 py-1 rounded-full">
-                                {activeFilterCount}
-                            </span>
+              {activeFilterCount}
+            </span>
                     )}
                 </div>
                 {expanded ? (
@@ -66,38 +93,30 @@ export default function FilterPanel({
                 >
                     <div className="px-4 pb-4 space-y-4">
                         {/* Sort Dropdown */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Sort By
-                            </label>
-                            <select
-                                value={sortOption}
-                                onChange={(e) => onSortChange(e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
-                            >
-                                <option value="newest">Newest First</option>
-                                <option value="oldest">Oldest First</option>
-                                <option value="name-asc">Name (A-Z)</option>
-                                <option value="name-desc">Name (Z-A)</option>
-                            </select>
-                        </div>
+                        <Select
+                            label="Sort By"
+                            value={sortOption}
+                            onChange={(e) => onSortChange(e.target.value)}
+                            options={[
+                                { value: 'newest', label: 'Newest First' },
+                                { value: 'oldest', label: 'Oldest First' },
+                                { value: 'name-asc', label: 'Name (A-Z)' },
+                                { value: 'name-desc', label: 'Name (Z-A)' },
+                            ]}
+                        />
 
                         {/* Category Filters */}
                         <div>
                             <p className="text-sm font-medium text-gray-700 mb-2">Category</p>
                             <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200">
                                 {CATEGORIES.map(category => (
-                                    <button
+                                    <FilterButton
                                         key={category}
+                                        active={selectedCategories.includes(category)}
                                         onClick={() => onToggleCategory(category)}
-                                        className={`whitespace-nowrap px-3 py-2 rounded-lg text-sm font-medium transition duration-200 ${
-                                            selectedCategories.includes(category)
-                                                ? 'bg-blue-600 text-white shadow-md'
-                                                : 'bg-white text-gray-700 border border-gray-300 hover:border-blue-400'
-                                        }`}
                                     >
                                         {category}
-                                    </button>
+                                    </FilterButton>
                                 ))}
                             </div>
                         </div>
@@ -107,17 +126,13 @@ export default function FilterPanel({
                             <p className="text-sm font-medium text-gray-700 mb-2">State</p>
                             <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200">
                                 {STATES.map(state => (
-                                    <button
+                                    <StateFilterButton
                                         key={state}
+                                        active={selectedStates.includes(state)}
                                         onClick={() => onToggleState(state)}
-                                        className={`whitespace-nowrap px-3 py-2 rounded-lg text-sm font-medium transition duration-200 ${
-                                            selectedStates.includes(state)
-                                                ? 'bg-indigo-600 text-white shadow-md'
-                                                : 'bg-white text-gray-700 border border-gray-300 hover:border-indigo-400'
-                                        }`}
                                     >
                                         {state}
-                                    </button>
+                                    </StateFilterButton>
                                 ))}
                             </div>
                         </div>
@@ -141,16 +156,20 @@ export default function FilterPanel({
 
                         {/* Clear All Button */}
                         {activeFilterCount > 0 && (
-                            <button
+                            <Button
+                                variant="ghost"
+                                size="sm"
                                 onClick={onClearAll}
-                                className="w-full text-sm text-blue-600 hover:text-blue-700 font-semibold flex items-center justify-center gap-1 py-2"
+                                icon={X}
+                                fullWidth
+                                className="text-blue-600 hover:text-blue-700"
                             >
-                                <X className="w-4 h-4" />
                                 Clear All Filters
-                            </button>
+                            </Button>
                         )}
                     </div>
-                </div>)}
+                </div>
+            )}
         </div>
     );
 }

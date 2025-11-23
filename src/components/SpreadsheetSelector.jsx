@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { FileSpreadsheet, AlertCircle, LogOut, X } from 'lucide-react';
+import { FileSpreadsheet, LogOut, X } from 'lucide-react';
+import { Button, IconButton, Alert, Card } from './ui';
+import { containerClasses } from '../styles/common-classes';
 import { showDrivePicker } from '../utils/googleAuth';
 
 export default function SpreadsheetSelector({ user, onSelected, onCancel, onSignOut }) {
@@ -39,8 +41,8 @@ export default function SpreadsheetSelector({ user, onSelected, onCancel, onSign
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-            <div className={`bg-white rounded-2xl shadow-2xl w-full max-w-md transition-all duration-300 ${
+        <div className={`${containerClasses.page} flex items-center justify-center p-4`}>
+            <Card className={`max-w-md w-full transition-all duration-300 ${
                 isClosing ? 'opacity-0 scale-95' : 'opacity-100 scale-100 animate-fadeIn'
             }`}>
                 {/* Header */}
@@ -57,13 +59,13 @@ export default function SpreadsheetSelector({ user, onSelected, onCancel, onSign
                             <p className="text-sm text-gray-600 truncate">{user.email}</p>
                         </div>
                     </div>
-                    <button
+                    <IconButton
+                        icon={LogOut}
+                        variant="ghost"
                         onClick={onSignOut}
-                        className="text-gray-400 hover:text-gray-600 transition p-2 hover:bg-gray-100 rounded-lg flex-shrink-0"
                         title="Sign out"
-                    >
-                        <LogOut className="w-5 h-5" />
-                    </button>
+                        className="text-gray-400 hover:text-gray-600"
+                    />
                 </div>
 
                 <div className="p-6 md:p-8">
@@ -71,7 +73,9 @@ export default function SpreadsheetSelector({ user, onSelected, onCancel, onSign
                         <div className="w-16 h-16 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
                             <FileSpreadsheet className="w-8 h-8 text-white" />
                         </div>
-                        <h1 className="text-xl md:text-2xl font-bold text-gray-800 mb-2">Select Purchase Sheet</h1>
+                        <h1 className="text-xl md:text-2xl font-bold text-gray-800 mb-2">
+                            Select Purchase Sheet
+                        </h1>
                         <p className="text-sm md:text-base text-gray-600">
                             Please select the purchasing spreadsheet from your Google Drive to continue.
                         </p>
@@ -79,60 +83,47 @@ export default function SpreadsheetSelector({ user, onSelected, onCancel, onSign
 
                     {/* Error Message */}
                     {error && (
-                        <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4 flex items-start animate-slideDown">
-                            <AlertCircle className="w-5 h-5 text-red-600 mr-3 mt-0.5 flex-shrink-0" />
-                            <div className="min-w-0 flex-1">
-                                <p className="font-semibold text-red-800 text-sm">Error</p>
-                                <p className="text-sm text-red-700 break-words">{error}</p>
-                            </div>
-                        </div>
+                        <Alert type="error" title="Error" className="mb-6 animate-slideDown">
+                            {error}
+                        </Alert>
                     )}
 
                     {/* Instructions */}
-                    <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-                        <p className="text-sm text-blue-800 font-medium mb-2">Instructions:</p>
-                        <ol className="text-sm text-blue-700 space-y-1 list-decimal list-inside">
+                    <Alert type="info" className="mb-6">
+                        <p className="font-medium mb-2">Instructions:</p>
+                        <ol className="space-y-1 list-decimal list-inside">
                             <li>Click the button below to open the file picker</li>
                             <li>Select the correct purchasing spreadsheet</li>
                             <li>The system will verify the spreadsheet is valid</li>
                         </ol>
-                    </div>
+                    </Alert>
 
                     {/* Select Button */}
-                    <button
+                    <Button
+                        variant="primary"
+                        size="lg"
                         onClick={handleSelectSpreadsheet}
+                        loading={loading || validating}
                         disabled={loading || validating}
-                        className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold py-3 px-6 rounded-lg transition duration-200 flex items-center justify-center shadow-lg transform active:scale-95"
+                        fullWidth
+                        icon={FileSpreadsheet}
                     >
-                        {loading ? (
-                            <>
-                                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                                Opening picker...
-                            </>
-                        ) : validating ? (
-                            <>
-                                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                                Validating...
-                            </>
-                        ) : (
-                            <>
-                                <FileSpreadsheet className="w-5 h-5 mr-2" />
-                                Select Spreadsheet
-                            </>
-                        )}
-                    </button>
+                        {loading ? 'Opening picker...' : validating ? 'Validating...' : 'Select Spreadsheet'}
+                    </Button>
 
                     {/* Cancel Button */}
-                    <button
+                    <Button
+                        variant="secondary"
                         onClick={handleCancel}
                         disabled={loading || validating}
-                        className="w-full mt-3 bg-gray-200 hover:bg-gray-300 disabled:bg-gray-100 text-gray-700 font-semibold py-2 px-6 rounded-lg transition duration-200 flex items-center justify-center transform active:scale-95"
+                        fullWidth
+                        className="mt-3"
+                        icon={X}
                     >
-                        <X className="w-4 h-4 mr-2" />
                         Cancel
-                    </button>
+                    </Button>
                 </div>
-            </div>
+            </Card>
         </div>
     );
 }

@@ -1,8 +1,11 @@
+import { Spinner } from './ui';
+import { containerClasses } from '../styles/common-classes';
+
 export default function LoadingSpinner() {
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className={`${containerClasses.page} flex items-center justify-center`}>
             <div className="text-center">
-                <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                <Spinner size="xl" className="mx-auto mb-4" />
                 <p className="text-gray-600">Loading...</p>
             </div>
         </div>

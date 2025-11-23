@@ -1,6 +1,8 @@
-import { X, Pencil, Trash2, Loader, XCircle } from 'lucide-react';
+import { X, Pencil, Trash2, XCircle } from 'lucide-react';
 import { forwardRef } from 'react';
-import StateBadge from './StateBadge';
+import { IconButton } from '../ui/index.js';
+import { PageHeader } from '../layout/index.js';
+import StateBadge from '../StateBadge.jsx';
 
 const ModalHeader = forwardRef(({
                                     purchase,
@@ -16,10 +18,12 @@ const ModalHeader = forwardRef(({
                                     onTouchMove,
                                     onTouchEnd
                                 }, ref) => {
+    const isFullyApproved = purchase['S Approver'] && purchase['M Approver'];
+
     return (
-        <div
+        <PageHeader
             ref={ref}
-            className="sticky top-0 z-30 bg-gradient-to-r from-red-700 to-orange-800 text-white shadow-lg"
+            className="sticky top-0 z-30 shadow-lg"
             onTouchStart={onTouchStart}
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
@@ -46,62 +50,49 @@ const ModalHeader = forwardRef(({
 
                     <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
                         {canDelete && (
-                            <button
+                            <IconButton
+                                icon={Trash2}
+                                variant="danger"
                                 onClick={onDelete}
-                                className="p-2 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center transition disabled:opacity-50 transform active:scale-90"
+                                loading={savingLoading}
                                 disabled={savingLoading}
                                 title="Delete purchase"
-                            >
-                                {savingLoading ? (
-                                    <Loader className="animate-spin w-5 h-5" />
-                                ) : (
-                                    <Trash2 className="w-4 h-4 md:w-5 md:h-5" />
-                                )}
-                            </button>
+                            />
                         )}
 
                         {canEdit && (
                             <>
                                 {!isEditing ? (
-                                    <button
+                                    <IconButton
+                                        icon={Pencil}
+                                        variant={isFullyApproved ? 'ghost' : 'warning'}
                                         onClick={onToggleEdit}
-                                        disabled={purchase['S Approver'] && purchase['M Approver']}
-                                        className={`p-2 rounded-full transition duration-200 transform active:scale-90 ${
-                                            purchase['S Approver'] && purchase['M Approver']
-                                                ? 'bg-white/10 text-white/50 cursor-not-allowed'
-                                                : 'bg-yellow-500 hover:bg-yellow-600 text-white'
-                                        }`}
-                                        title={
-                                            purchase['S Approver'] && purchase['M Approver']
-                                                ? 'Cannot edit after approval'
-                                                : 'Edit item'
-                                        }
-                                    >
-                                        <Pencil className="w-4 h-4 md:w-5 md:h-5" />
-                                    </button>
+                                        disabled={isFullyApproved}
+                                        className={isFullyApproved ? 'bg-white/10 text-white/50 cursor-not-allowed' : 'bg-yellow-500 hover:bg-yellow-600'}
+                                        title={isFullyApproved ? 'Cannot edit after approval' : 'Edit item'}
+                                    />
                                 ) : (
-                                    <button
+                                    <IconButton
+                                        icon={XCircle}
+                                        variant="danger"
                                         onClick={onCancelEdit}
-                                        className="p-2 rounded-full bg-red-500 hover:bg-red-600 text-white transition duration-200 transform active:scale-90"
                                         title="Cancel edit mode"
-                                    >
-                                        <XCircle className="w-4 h-4 md:w-5 md:h-5" />
-                                    </button>
+                                    />
                                 )}
                             </>
                         )}
 
-                        <button
+                        <IconButton
+                            icon={X}
+                            variant="ghost"
                             onClick={onClose}
-                            className="text-white hover:bg-white/20 rounded-lg p-2 transition transform active:scale-90"
                             title="Close"
-                        >
-                            <X className="w-5 h-5 md:w-6 md:h-6" />
-                        </button>
+                            className="hover:bg-white/20"
+                        />
                     </div>
                 </div>
             </div>
-        </div>
+        </PageHeader>
     );
 });
 

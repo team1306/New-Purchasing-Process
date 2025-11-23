@@ -122,6 +122,7 @@ export const useApprovalLogic = (user, validation) => {
     };
 
     return {
+        getUserApprovalPermissions,
         canApproveRequest,
         canOverwriteApproval,
         isApproverValid,

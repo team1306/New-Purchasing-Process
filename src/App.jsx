@@ -16,7 +16,6 @@ export default function App() {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const [needsSpreadsheetSelection, setNeedsSpreadsheetSelection] = useState(false);
-    const [cancelled, setCancelled] = useState(false);
 
     useEffect(() => {
         const initializeApp = async () => {
@@ -61,11 +60,10 @@ export default function App() {
 
     const handleSpreadsheetSelected = () => {
         setNeedsSpreadsheetSelection(false);
-        setCancelled(false);
     };
 
     const handleSpreadsheetCancelled = () => {
-        setCancelled(true);
+        handleSignOut();
         setNeedsSpreadsheetSelection(false);
     };
 
@@ -73,12 +71,6 @@ export default function App() {
         clearTokens();
         setUser(null);
         setNeedsSpreadsheetSelection(false);
-        setCancelled(false);
-    };
-
-    const handleRetrySelection = () => {
-        setCancelled(false);
-        setNeedsSpreadsheetSelection(true);
     };
 
     if (loading) {
@@ -94,12 +86,6 @@ export default function App() {
                     user={user}
                     onSelected={handleSpreadsheetSelected}
                     onCancel={handleSpreadsheetCancelled}
-                    onSignOut={handleSignOut}
-                />
-            ) : cancelled ? (
-                <CancelledScreen
-                    user={user}
-                    onRetry={handleRetrySelection}
                     onSignOut={handleSignOut}
                 />
             ) : (

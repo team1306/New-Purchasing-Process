@@ -1,5 +1,6 @@
 import { createContext, useContext, useState } from 'react';
-import CustomAlert from './CustomAlert';
+import {ConfirmDialog} from "./ui/index.js";
+import CustomAlert from "./CustomAlert.jsx";
 
 const AlertContext = createContext();
 

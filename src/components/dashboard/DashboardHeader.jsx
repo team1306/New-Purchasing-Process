@@ -1,5 +1,8 @@
-import { LogOut, RefreshCw, Plus, Menu, X, CheckSquare, Square, List, LayoutGrid } from 'lucide-react';
+import { LogOut, RefreshCw, Plus, Menu as MenuIcon, X, CheckSquare, Square, List, LayoutGrid } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { Button, IconButton, Divider } from '../ui';
+import { PageHeader } from '../layout';
+import UserProfile from '../common/UserProfile';
 
 export default function DashboardHeader({
                                             user,
@@ -27,18 +30,18 @@ export default function DashboardHeader({
         setTimeout(() => setShowMenu(false), 300);
     };
 
+    const handleMenuAction = (action) => {
+        action();
+        handleCloseMenu();
+    };
+
     return (
-        <div className="bg-gradient-to-r from-red-700 to-orange-800 text-white">
+        <PageHeader>
             {/* Mobile Header */}
             <div className="md:hidden">
                 <div className="flex items-center justify-between p-4">
                     <div className="flex items-center gap-3">
-                        <img
-                            src={user.picture}
-                            alt="Profile"
-                            className="w-10 h-10 rounded-full border-2 border-white shadow-lg"
-                            referrerPolicy="no-referrer"
-                        />
+                        <UserProfile user={user} size="md" showInfo={false} />
                         <div>
                             <h1 className="text-lg font-bold">Dashboard</h1>
                             {selectionMode ? (
@@ -49,13 +52,12 @@ export default function DashboardHeader({
                         </div>
                     </div>
 
-                    <button
+                    <IconButton
+                        icon={showMenu ? X : MenuIcon}
+                        variant="ghost"
                         onClick={() => setShowMenu(!showMenu)}
-                        className="p-2 hover:bg-white/20 rounded-lg transition"
-                        aria-label="Toggle menu"
-                    >
-                        {showMenu ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-                    </button>
+                        title="Toggle menu"
+                    />
                 </div>
 
                 {/* Mobile Menu Dropdown */}
@@ -66,66 +68,64 @@ export default function DashboardHeader({
                         }`}
                     >
                         <div className="px-4 pb-4 space-y-2 border-t border-white/20 pt-4">
-                            <button
-                                onClick={() => {
-                                    onToggleViewMode();
-                                    handleCloseMenu();
-                                }}
-                                className="w-full flex items-center justify-center gap-2 bg-indigo-500 hover:bg-indigo-600 text-white py-3 px-4 rounded-lg font-semibold transition shadow-lg"
+                            <Button
+                                variant="ghost"
+                                onClick={() => handleMenuAction(onToggleViewMode)}
+                                icon={viewMode === 'list' ? LayoutGrid : List}
+                                fullWidth
+                                className="justify-center bg-indigo-500 hover:bg-indigo-600"
                             >
-                                {viewMode === 'list' ? <LayoutGrid size={20} /> : <List size={20} />}
-                                <span>{viewMode === 'list' ? 'Group View' : 'List View'}</span>
-                            </button>
+                                {viewMode === 'list' ? 'Group View' : 'List View'}
+                            </Button>
 
-                            <button
-                                onClick={() => {
-                                    onToggleSelectionMode();
-                                    handleCloseMenu();
-                                }}
-                                className="w-full flex items-center justify-center gap-2 bg-purple-500 hover:bg-purple-600 text-white py-3 px-4 rounded-lg font-semibold transition shadow-lg"
+                            <Button
+                                variant="ghost"
+                                onClick={() => handleMenuAction(onToggleSelectionMode)}
+                                icon={selectionMode ? Square : CheckSquare}
+                                fullWidth
+                                className="justify-center bg-purple-500 hover:bg-purple-600"
                             >
-                                {selectionMode ? <Square size={20} /> : <CheckSquare size={20} />}
-                                <span>{selectionMode ? 'Cancel Selection' : 'Multi-Select'}</span>
-                            </button>
+                                {selectionMode ? 'Cancel Selection' : 'Multi-Select'}
+                            </Button>
 
-                            <button
-                                onClick={() => {
-                                    onCreateRequest();
-                                    handleCloseMenu();
-                                }}
-                                className="w-full flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white py-3 px-4 rounded-lg font-semibold transition shadow-lg"
+                            <Button
+                                variant="ghost"
+                                onClick={() => handleMenuAction(onCreateRequest)}
+                                icon={Plus}
+                                fullWidth
+                                className="justify-center bg-green-500 hover:bg-green-600"
                             >
-                                <Plus size={20} />
-                                <span>Create Request</span>
-                            </button>
+                                Create Request
+                            </Button>
 
-                            <button
-                                onClick={() => {
-                                    onRefresh();
-                                    handleCloseMenu();
-                                }}
+                            <Button
+                                variant="ghost"
+                                onClick={() => handleMenuAction(onRefresh)}
+                                loading={refreshing}
                                 disabled={refreshing}
-                                className="w-full bg-white/20 hover:bg-white/30 disabled:bg-white/10 text-white font-semibold py-3 px-4 rounded-lg transition flex items-center justify-center gap-2"
+                                icon={RefreshCw}
+                                fullWidth
+                                className="justify-center"
                             >
-                                <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
-                                <span>{refreshing ? 'Refreshing...' : 'Refresh'}</span>
-                            </button>
+                                {refreshing ? 'Refreshing...' : 'Refresh'}
+                            </Button>
+
+                            <Divider className="my-2" />
 
                             <div className="bg-white/10 rounded-lg p-3">
                                 <p className="font-semibold text-sm">{user.name}</p>
                                 <p className="text-xs text-blue-100">{user.email}</p>
                             </div>
 
-                            <button
-                                onClick={() => {
-                                    onSignOut();
-                                    handleCloseMenu();
-                                }}
-                                className="w-full bg-white/20 hover:bg-white/30 text-white font-semibold py-3 px-4 rounded-lg transition flex items-center justify-center gap-2"
+                            <Button
+                                variant="ghost"
+                                onClick={() => handleMenuAction(onSignOut)}
+                                icon={LogOut}
+                                fullWidth
+                                className="justify-center"
                             >
-                                <LogOut className="w-5 h-5" />
-                                <span>Sign Out</span>
-                            </button>
+                                Sign Out
+                            </Button>
                         </div>
                     </div>
                 )}
@@ -138,73 +138,71 @@ export default function DashboardHeader({
                         <div>
                             <h1 className="text-3xl font-bold mb-1">Dashboard</h1>
                             {selectionMode ? (
-                                <p className="text-blue-100">{selectedCount} item{selectedCount !== 1 ? 's' : ''} selected</p>
+                                <p className="text-blue-100">
+                                    {selectedCount} item{selectedCount !== 1 ? 's' : ''} selected
+                                </p>
                             ) : (
-                                <p className="text-blue-100">{viewMode === 'list' ? 'List View' : 'Group View'}</p>
+                                <p className="text-blue-100">
+                                    {viewMode === 'list' ? 'List View' : 'Group View'}
+                                </p>
                             )}
                         </div>
 
-                        <button
+                        <Button
+                            variant="ghost"
                             onClick={onToggleViewMode}
-                            className="bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-200 flex items-center gap-2"
+                            icon={viewMode === 'list' ? LayoutGrid : List}
+                            className="bg-indigo-500 hover:bg-indigo-600"
                             title={viewMode === 'list' ? "Switch to Group View" : "Switch to List View"}
                         >
-                            {viewMode === 'list' ? <LayoutGrid className="w-5 h-5" /> : <List className="w-5 h-5" />}
                             {viewMode === 'list' ? 'Group View' : 'List View'}
-                        </button>
+                        </Button>
 
-                        <button
+                        <Button
+                            variant="ghost"
                             onClick={onToggleSelectionMode}
-                            className="bg-purple-500 hover:bg-purple-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-200 flex items-center gap-2"
+                            icon={selectionMode ? Square : CheckSquare}
+                            className="bg-purple-500 hover:bg-purple-600"
                             title={selectionMode ? "Cancel selection" : "Multi-select mode"}
                         >
-                            {selectionMode ? <Square className="w-5 h-5" /> : <CheckSquare className="w-5 h-5" />}
                             {selectionMode ? 'Cancel Selection' : 'Multi-Select'}
-                        </button>
+                        </Button>
 
-                        <button
+                        <Button
+                            variant="ghost"
                             onClick={onRefresh}
+                            loading={refreshing}
                             disabled={refreshing}
-                            className="bg-white/20 hover:bg-white/30 disabled:bg-white/10 text-white font-semibold py-2 px-4 rounded-lg transition duration-200 flex items-center"
+                            icon={RefreshCw}
                             title="Refresh data"
                         >
-                            <RefreshCw className={`w-5 h-5 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
                             {refreshing ? 'Refreshing...' : 'Refresh'}
-                        </button>
+                        </Button>
 
-                        <button
-                            className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-lg font-semibold shadow-lg transition"
+                        <Button
+                            variant="ghost"
                             onClick={onCreateRequest}
+                            icon={Plus}
+                            className="bg-green-500 hover:bg-green-600"
                         >
-                            <Plus size={20} />
                             Create Request
-                        </button>
+                        </Button>
                     </div>
 
                     <div className="flex items-center gap-4">
-                        <img
-                            src={user.picture}
-                            alt="Profile"
-                            className="w-12 h-12 rounded-full border-2 border-white shadow-lg"
-                            referrerPolicy="no-referrer"
-                        />
+                        <UserProfile user={user} size="lg" />
 
-                        <div className="text-right">
-                            <p className="font-semibold">{user.name}</p>
-                            <p className="text-sm text-blue-100">{user.email}</p>
-                        </div>
-
-                        <button
+                        <Button
+                            variant="ghost"
                             onClick={onSignOut}
-                            className="bg-white/20 hover:bg-white/30 text-white font-semibold py-2 px-4 rounded-lg transition duration-200 flex items-center"
+                            icon={LogOut}
                             title="Sign Out"
                         >
-                            <LogOut className="w-5 h-5 mr-2" />
                             Sign Out
-                        </button>
+                        </Button>
                     </div>
                 </div>
             </div>
-        </div>
+        </PageHeader>
     );
 }

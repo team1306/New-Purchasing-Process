@@ -1,4 +1,4 @@
-import PurchaseCard from './PurchaseCard';
+import { PurchaseCard } from '../cards';
 import { useAlert } from '../AlertContext';
 
 export default function PurchaseCardWrapper(props) {
@@ -19,6 +19,7 @@ export default function PurchaseCardWrapper(props) {
         <PurchaseCard
             {...props}
             onStateChange={handleStateChange}
+            showGroupTag={true}
         />
     );
 }

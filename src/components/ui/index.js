@@ -16,3 +16,4 @@ export { default as EmptyState } from './EmptyState';
 export { default as Checkbox } from './Checkbox';
 export { default as Divider } from './Divider';
 export { default as Menu, MenuItem } from './Menu';
+export { default as MobileMenu } from './MobileMenu';

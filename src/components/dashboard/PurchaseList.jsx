@@ -2,6 +2,7 @@ import { Package } from 'lucide-react';
 import PurchaseCardWrapper from './PurchaseCardWrapper';
 import BulkActionBar from './BulkActionBar';
 import { Card, LoadingState, ErrorState, EmptyState } from '../ui';
+import { animations } from '../../styles/design-tokens';
 
 export default function PurchaseList({
                                          purchases,
@@ -21,11 +22,12 @@ export default function PurchaseList({
                                          selectionMode,
                                          selectedPurchases,
                                          onToggleSelect,
-                                         onBulkStateChange
+                                         onBulkStateChange,
+                                         onBulkShippingChange = null
                                      }) {
     if (loading) {
         return (
-            <Card className="animate-fadeIn">
+            <Card className={animations.fadeIn}>
                 <LoadingState message="Loading purchases..." />
             </Card>
         );
@@ -33,7 +35,7 @@ export default function PurchaseList({
 
     if (error) {
         return (
-            <Card className="animate-fadeIn">
+            <Card className={animations.fadeIn}>
                 <ErrorState message={error} onRetry={onRetry} />
             </Card>
         );
@@ -42,7 +44,7 @@ export default function PurchaseList({
     if (filteredPurchases.length === 0) {
         return (
             <>
-                <Card className="animate-fadeIn">
+                <Card className={animations.fadeIn}>
                     <EmptyState
                         icon={Package}
                         title="No purchases found"
@@ -67,9 +69,10 @@ export default function PurchaseList({
                 <BulkActionBar
                     selectedPurchases={selectedPurchases}
                     onBulkStateChange={onBulkStateChange}
+                    onBulkShippingChange={onBulkShippingChange}
                 />
             )}
-            <Card padding={false} className="animate-fadeIn">
+            <Card padding={false} className={animations.fadeIn}>
                 <div className="divide-y divide-gray-200">
                     {filteredPurchases.map((purchase, index) => {
                         const isSelected = selectedPurchases.some(p => p['Request ID'] === purchase['Request ID']);

@@ -1,3 +1,6 @@
+// Import state colors from design tokens (single source of truth)
+import { stateColors } from '../styles/design-tokens';
+
 export const CATEGORIES = [
     'Robot',
     'Inventory',
@@ -18,14 +21,8 @@ export const STATES = [
     'Completed'
 ];
 
-export const STATE_COLORS = {
-    'Pending Approval': 'bg-yellow-100 text-yellow-800',
-    'Approved': 'bg-blue-100 text-blue-800',
-    'Received': 'bg-green-100 text-green-800',
-    'Purchased': 'bg-purple-100 text-purple-800',
-    'On Hold': 'bg-gray-100 text-gray-800',
-    'Completed': 'bg-green-100 text-green-800'
-};
+// Re-export state colors from design tokens
+export const STATE_COLORS = stateColors;
 
 export const formatDate = (dateString) => {
     if (!dateString) return 'N/A';

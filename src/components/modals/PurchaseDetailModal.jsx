@@ -7,6 +7,7 @@ import { useModalDrag } from '../../hooks/index.js';
 import ModalHeader from './ModalHeader.jsx';
 import EditActionsFooter from './EditActionsFooter.jsx';
 import PurchaseModalContent from './PurchaseModalContent.jsx';
+import { animations } from '../../styles/design-tokens';
 
 export default function PurchaseDetailModal({
                                                 purchase,
@@ -87,7 +88,7 @@ export default function PurchaseDetailModal({
     return (
         <div
             className={`fixed inset-0 bg-black z-50 flex items-end md:items-center justify-center p-0 md:p-4 ${
-                isClosing ? 'animate-fadeOut' : 'animate-fadeIn'
+                isClosing ? 'animate-fadeOut' : animations.fadeIn
             }`}
             style={{
                 backgroundColor: isClosing ? 'transparent' : 'rgba(0, 0, 0, 0.5)',

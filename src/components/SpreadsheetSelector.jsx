@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { FileSpreadsheet, LogOut, X } from 'lucide-react';
 import { Button, IconButton, Alert, Card } from './ui';
 import { containerClasses } from '../styles/common-classes';
+import { animations } from '../styles/design-tokens';
 import { showDrivePicker } from '../utils/googleAuth';
 
 export default function SpreadsheetSelector({ user, onSelected, onCancel, onSignOut }) {
@@ -43,7 +44,7 @@ export default function SpreadsheetSelector({ user, onSelected, onCancel, onSign
     return (
         <div className={`${containerClasses.page} flex items-center justify-center p-4`}>
             <Card className={`max-w-md w-full transition-all duration-300 ${
-                isClosing ? 'opacity-0 scale-95' : 'opacity-100 scale-100 animate-fadeIn'
+                isClosing ? 'opacity-0 scale-95' : `opacity-100 scale-100 ${animations.fadeIn}`
             }`}>
                 {/* Header */}
                 <div className="flex items-center justify-between p-6 border-b">
@@ -83,7 +84,7 @@ export default function SpreadsheetSelector({ user, onSelected, onCancel, onSign
 
                     {/* Error Message */}
                     {error && (
-                        <Alert type="error" title="Error" className="mb-6 animate-slideDown">
+                        <Alert type="error" title="Error" className={`mb-6 ${animations.slideDown}`}>
                             {error}
                         </Alert>
                     )}
@@ -91,7 +92,7 @@ export default function SpreadsheetSelector({ user, onSelected, onCancel, onSign
                     {/* Instructions */}
                     <Alert type="info" className="mb-6">
                         <p className="font-medium mb-2">Instructions:</p>
-                        <ol className="space-y-1 list-decimal list-inside">
+                        <ol className="space-y-1 list-decimal list-inside text-sm">
                             <li>Click the button below to open the file picker</li>
                             <li>Select the correct purchasing spreadsheet</li>
                             <li>The system will verify the spreadsheet is valid</li>

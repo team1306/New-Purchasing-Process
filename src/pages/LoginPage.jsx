@@ -1,8 +1,9 @@
 import { User } from 'lucide-react';
+import { useState } from 'react';
 import { Button, Alert, Card } from '../components/ui';
 import { containerClasses } from '../styles/common-classes';
+import { animations } from '../styles/design-tokens';
 import { requestOAuthAccess } from '../utils/googleAuth';
-import { useState } from 'react';
 
 export default function LoginPage({ onSignIn }) {
     const [loading, setLoading] = useState(false);
@@ -30,9 +31,9 @@ export default function LoginPage({ onSignIn }) {
 
     return (
         <div className={`${containerClasses.page} flex items-center justify-center p-4`}>
-            <Card className="max-w-md w-full">
+            <Card className={`max-w-md w-full ${animations.fadeIn}`}>
                 <div className="text-center mb-8">
-                    <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
                         <User className="w-8 h-8 text-white" />
                     </div>
                     <h1 className="text-3xl font-bold text-gray-800 mb-2">Welcome Back</h1>
@@ -41,7 +42,7 @@ export default function LoginPage({ onSignIn }) {
 
                 {/* Error Message */}
                 {error && (
-                    <Alert type="error" title="Error" className="mb-6">
+                    <Alert type="error" title="Error" className={`mb-6 ${animations.slideDown}`}>
                         {error}
                     </Alert>
                 )}

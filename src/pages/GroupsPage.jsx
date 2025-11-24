@@ -6,14 +6,15 @@ import FilterPanel from '../components/dashboard/FilterPanel';
 import PurchaseDetailModal from '../components/modals/PurchaseDetailModal.jsx';
 import RequestForm from '../components/RequestForm';
 import BulkActionBar from '../components/dashboard/BulkActionBar';
-import GroupCard from '../components/groups/GroupCard';
+import { PurchaseCard } from '../components/cards';
 import { usePurchaseManagement } from '../hooks/usePurchaseManagement';
 import { useFilters } from '../hooks/useFilters';
 import { useAlert } from '../components/AlertContext';
 import { applyFiltersAndSort } from '../utils/filterHelpers';
 import { StateChangeController, ShippingController } from '../controllers';
 import { PageContainer } from '../components/layout';
-import { Card, LoadingState, ErrorState, Checkbox } from '../components/ui';
+import { Card, LoadingState, ErrorState, Checkbox, EmptyState } from '../components/ui';
+import { animations } from '../styles/design-tokens';
 
 export default function GroupsPage({
                                        user,
@@ -71,12 +72,8 @@ export default function GroupsPage({
 
     // Wrapper functions that use controllers
     const handleStateChange = async (purchase, newState) => {
-        const confirmed = await showConfirm(
-            `Change state to \"${newState}\"`
-        );
-
-        if(!confirmed) return;
-
+        const confirmed = await showConfirm(`Change state to "${newState}"`);
+        if (!confirmed) return;
         await stateController.changeState(purchase, newState);
     };
 
@@ -92,10 +89,35 @@ export default function GroupsPage({
             `Change ${selectedPurchases.length} item${selectedPurchases.length !== 1 ? 's' : ''} to "${newState}"?`,
             { confirmText: 'Change All', cancelText: 'Cancel' }
         );
+        if (!confirmed) return;
+        await stateController.changeBulkState(selectedPurchases, newState);
+    };
 
+    const handleBulkShippingChange = async (newShippingValue) => {
+        const confirmed = await showConfirm(
+            `Set shipping to $${parseFloat(newShippingValue).toFixed(2)} for ${selectedPurchases.length} item${selectedPurchases.length !== 1 ? 's' : ''}?`,
+            { confirmText: 'Update All', cancelText: 'Cancel' }
+        );
         if (!confirmed) return;
 
-        await stateController.changeBulkState(selectedPurchases, newState);
+        try {
+            const validation = shippingController.validateShipping(newShippingValue);
+            if (!validation.valid) {
+                await showError(validation.error);
+                return;
+            }
+
+            // Update all selected purchases
+            const updatePromises = selectedPurchases.map(purchase =>
+                shippingController.updateShipping(purchase, newShippingValue)
+            );
+
+            await Promise.all(updatePromises);
+            onRefresh();
+        } catch (err) {
+            console.error('Error updating bulk shipping:', err);
+            await showError('Failed to update shipping for some items. Please try again.');
+        }
     };
 
     const isDirector = validation['Directors']?.includes(user.name);
@@ -135,6 +157,23 @@ export default function GroupsPage({
         });
     };
 
+    // Filter groups by search query (search both group names and item descriptions)
+    const filterGroupsBySearch = (groupEntries) => {
+        if (!searchQuery.trim()) return groupEntries;
+
+        return groupEntries.filter(([groupName, groupPurchases]) => {
+            // Check if group name matches
+            const groupNameMatches = groupName.toLowerCase().includes(searchQuery.toLowerCase());
+
+            // Check if any item in group matches
+            const itemMatches = groupPurchases.some(purchase =>
+                purchase['Item Description']?.toLowerCase().includes(searchQuery.toLowerCase())
+            );
+
+            return groupNameMatches || itemMatches;
+        });
+    };
+
     const toggleGroup = (groupName) => {
         setExpandedGroups(prev => {
             const next = new Set(prev);
@@ -148,10 +187,11 @@ export default function GroupsPage({
     };
 
     const toggleAllGroups = () => {
-        if (expandedGroups.size === grouped.length) {
+        const filteredGrouped = filterGroupsBySearch(grouped);
+        if (expandedGroups.size === filteredGrouped.length) {
             setExpandedGroups(new Set());
         } else {
-            setExpandedGroups(new Set(grouped.map(([name]) => name)));
+            setExpandedGroups(new Set(filteredGrouped.map(([name]) => name)));
         }
     };
 
@@ -185,7 +225,7 @@ export default function GroupsPage({
     if (loading) {
         return (
             <PageContainer>
-                <Card>
+                <Card className={animations.fadeIn}>
                     <LoadingState message="Loading purchases..." />
                 </Card>
             </PageContainer>
@@ -195,17 +235,20 @@ export default function GroupsPage({
     if (error) {
         return (
             <PageContainer>
-                <Card>
+                <Card className={animations.fadeIn}>
                     <ErrorState message={error} onRetry={onRetry} />
                 </Card>
             </PageContainer>
         );
     }
 
+    // Filter groups by search
+    const filteredGrouped = filterGroupsBySearch(grouped);
+
     return (
         <PageContainer>
             {/* Header */}
-            <Card padding={false} className="mb-4 md:mb-6">
+            <Card padding={false} className={`mb-4 md:mb-6 ${animations.fadeIn}`}>
                 <DashboardHeader
                     user={user}
                     onSignOut={onSignOut}
@@ -221,7 +264,10 @@ export default function GroupsPage({
 
                 {!selectionMode && (
                     <>
-                        <SearchBar value={searchQuery} onChange={setSearchQuery} />
+                        <SearchBar
+                            value={searchQuery}
+                            onChange={setSearchQuery}
+                        />
                         <FilterPanel
                             selectedCategories={selectedCategories}
                             selectedStates={selectedStates}
@@ -255,28 +301,30 @@ export default function GroupsPage({
                 <BulkActionBar
                     selectedPurchases={selectedPurchases}
                     onBulkStateChange={handleBulkStateChange}
+                    onBulkShippingChange={isDirector ? handleBulkShippingChange : null}
                 />
             )}
 
             {/* Groups List */}
-            <Card padding={false} className="mb-4">
+            <Card padding={false} className={`mb-4 ${animations.fadeIn}`}>
                 {/* Expand/Collapse All */}
-                {grouped.length > 0 && (
+                {filteredGrouped.length > 0 && (
                     <div className="p-4 border-b bg-gray-50 flex items-center justify-between">
                         <p className="text-sm font-semibold text-gray-700">
-                            {grouped.length} group{grouped.length !== 1 ? 's' : ''}
+                            {filteredGrouped.length} group{filteredGrouped.length !== 1 ? 's' : ''}
+                            {searchQuery && ` matching "${searchQuery}"`}
                         </p>
                         <button
                             onClick={toggleAllGroups}
-                            className="text-sm text-blue-600 hover:text-blue-700 font-semibold"
+                            className="text-sm text-blue-600 hover:text-blue-700 font-semibold transition-colors duration-200"
                         >
-                            {expandedGroups.size === grouped.length ? 'Collapse All' : 'Expand All'}
+                            {expandedGroups.size === filteredGrouped.length ? 'Collapse All' : 'Expand All'}
                         </button>
                     </div>
                 )}
 
                 {/* Grouped Items */}
-                {grouped.map(([groupName, groupPurchases]) => {
+                {filteredGrouped.map(([groupName, groupPurchases]) => {
                     const filteredGroupPurchases = applyFilters(groupPurchases);
                     if (filteredGroupPurchases.length === 0) return null;
 
@@ -290,10 +338,28 @@ export default function GroupsPage({
                     const selectedState = selectedPurchases.length > 0 ? selectedPurchases[0]['State'] : null;
                     const canSelectGroup = !selectedState || filteredGroupPurchases.every(p => p['State'] === selectedState);
 
+                    // Highlight group name if it matches search
+                    const highlightGroupName = () => {
+                        if (!searchQuery.trim()) return groupName;
+                        const lowerGroupName = groupName.toLowerCase();
+                        const lowerQuery = searchQuery.toLowerCase();
+                        const index = lowerGroupName.indexOf(lowerQuery);
+
+                        if (index === -1) return groupName;
+
+                        return (
+                            <>
+                                {groupName.substring(0, index)}
+                                <span className="bg-yellow-200">{groupName.substring(index, index + searchQuery.length)}</span>
+                                {groupName.substring(index + searchQuery.length)}
+                            </>
+                        );
+                    };
+
                     return (
                         <div key={groupName} className="border-b last:border-b-0">
                             {/* Group Header */}
-                            <div className="p-4 bg-gray-50 hover:bg-gray-100 transition">
+                            <div className="p-4 bg-gray-50 hover:bg-gray-100 transition-all duration-200">
                                 <div className="flex items-center gap-3">
                                     {selectionMode && (
                                         <button
@@ -313,12 +379,14 @@ export default function GroupsPage({
                                         className="flex-1 flex items-center gap-2 text-left"
                                     >
                                         {isExpanded ? (
-                                            <ChevronDown className="w-5 h-5 text-gray-600 flex-shrink-0" />
+                                            <ChevronDown className="w-5 h-5 text-gray-600 flex-shrink-0 transition-transform duration-200" />
                                         ) : (
-                                            <ChevronRight className="w-5 h-5 text-gray-600 flex-shrink-0" />
+                                            <ChevronRight className="w-5 h-5 text-gray-600 flex-shrink-0 transition-transform duration-200" />
                                         )}
                                         <div className="flex-1 min-w-0">
-                                            <h3 className="font-semibold text-gray-800 truncate">{groupName}</h3>
+                                            <h3 className="font-semibold text-gray-800 truncate">
+                                                {highlightGroupName()}
+                                            </h3>
                                             <p className="text-sm text-gray-600">
                                                 {filteredGroupPurchases.length} item{filteredGroupPurchases.length !== 1 ? 's' : ''}
                                             </p>
@@ -335,7 +403,7 @@ export default function GroupsPage({
                                         const selectionDisabled = selectionMode && selectedState && purchase['State'] !== selectedState;
 
                                         return (
-                                            <GroupCard
+                                            <PurchaseCard
                                                 key={purchase['Request ID'] || index}
                                                 purchase={purchase}
                                                 index={index}
@@ -365,21 +433,21 @@ export default function GroupsPage({
                 {/* Ungrouped Items */}
                 {applyFilters(ungrouped).length > 0 && (
                     <div className="border-t">
-                        <div className="p-4 bg-gray-100">
+                        <div className="p-4 bg-gray-100 hover:bg-gray-200 transition-all duration-200">
                             <button
                                 onClick={() => setUngroupedExpanded(!ungroupedExpanded)}
                                 className="w-full flex items-center gap-2"
                             >
                                 {ungroupedExpanded ? (
-                                    <ChevronDown className="w-5 h-5 text-gray-600 flex-shrink-0" />
+                                    <ChevronDown className="w-5 h-5 text-gray-600 flex-shrink-0 transition-transform duration-200" />
                                 ) : (
-                                    <ChevronRight className="w-5 h-5 text-gray-600 flex-shrink-0" />
+                                    <ChevronRight className="w-5 h-5 text-gray-600 flex-shrink-0 transition-transform duration-200" />
                                 )}
                                 <Package className="w-5 h-5 text-gray-600" />
                                 <h3 className="font-semibold text-gray-800">Ungrouped Items</h3>
                                 <span className="text-sm text-gray-600">
-                  ({applyFilters(ungrouped).length})
-                </span>
+                                    ({applyFilters(ungrouped).length})
+                                </span>
                             </button>
                         </div>
                         {ungroupedExpanded && (
@@ -390,7 +458,7 @@ export default function GroupsPage({
                                     const selectionDisabled = selectionMode && selectedState && purchase['State'] !== selectedState;
 
                                     return (
-                                        <GroupCard
+                                        <PurchaseCard
                                             key={purchase['Request ID'] || index}
                                             purchase={purchase}
                                             index={index}
@@ -416,12 +484,13 @@ export default function GroupsPage({
                     </div>
                 )}
 
-                {grouped.length === 0 && ungrouped.length === 0 && (
-                    <div className="p-12 text-center text-gray-500">
-                        <Package className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                        <p className="text-lg font-medium">No purchases found</p>
-                        <p className="text-sm text-gray-400 mt-2">Try adjusting your filters</p>
-                    </div>
+                {/* Empty State */}
+                {filteredGrouped.length === 0 && ungrouped.length === 0 && (
+                    <EmptyState
+                        icon={Package}
+                        title="No purchases found"
+                        description={searchQuery ? `No groups or items match "${searchQuery}"` : "Try adjusting your filters"}
+                    />
                 )}
             </Card>
 

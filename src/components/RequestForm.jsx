@@ -8,6 +8,7 @@ import { FormField, CurrencyInput, FormRow } from './forms';
 import { PageHeader } from './layout';
 import GroupNameAutocomplete from './groups/GroupNameAutoComplete.jsx';
 import { CATEGORIES } from '../utils/purchaseHelpers';
+import { animations } from '../styles/design-tokens';
 
 export default function RequestForm({ user, onClose, onCreated, presetFields = {}, existingPurchases = [] }) {
     const { showError } = useAlert();
@@ -53,7 +54,7 @@ export default function RequestForm({ user, onClose, onCreated, presetFields = {
         field => newRequest[field] && newRequest[field].toString().trim() !== ''
     );
 
-    // Prevent background scroll when modals is open
+    // Prevent background scroll when modal is open
     useEffect(() => {
         document.body.style.overflow = 'hidden';
         return () => {
@@ -89,8 +90,8 @@ export default function RequestForm({ user, onClose, onCreated, presetFields = {
     return (
         <div
             className={`fixed inset-0 bg-black z-50 flex items-center justify-center p-0 transition-opacity duration-300 ${
-                isClosing ? 'bg-opacity-0' : 'bg-opacity-50 animate-fadeIn'
-            }`}
+                isClosing ? 'bg-opacity-0' : 'bg-opacity-50'
+            } ${isClosing ? '' : animations.fadeIn}`}
             onClick={handleClose}
         >
             <div
@@ -100,7 +101,7 @@ export default function RequestForm({ user, onClose, onCreated, presetFields = {
           transition-all duration-300 ease-out
           ${isClosing
                     ? 'md:opacity-0 md:scale-95 translate-y-full md:translate-y-0'
-                    : 'md:opacity-100 md:scale-100 translate-y-0 md:animate-slideUp'
+                    : `md:opacity-100 md:scale-100 translate-y-0 ${animations.slideUp}`
                 }
         `}
                 onClick={(e) => e.stopPropagation()}
@@ -229,7 +230,7 @@ export default function RequestForm({ user, onClose, onCreated, presetFields = {
 
                     {/* Validation Message */}
                     {!isFormValid && (
-                        <Alert type="warning" title="Required fields missing" className="animate-slideDown">
+                        <Alert type="warning" title="Required fields missing" className={animations.slideDown}>
                             Please fill out all required fields marked with <span className="text-red-500">*</span>
                         </Alert>
                     )}

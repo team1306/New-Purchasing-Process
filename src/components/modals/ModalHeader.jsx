@@ -68,7 +68,7 @@ const ModalHeader = forwardRef(({
                                         variant={isFullyApproved ? 'ghost' : 'warning'}
                                         onClick={onToggleEdit}
                                         disabled={isFullyApproved}
-                                        className={isFullyApproved ? 'bg-white/10 text-white/50 cursor-not-allowed' : 'bg-yellow-500 hover:bg-yellow-600'}
+                                        className={isFullyApproved ? 'opacity-50 cursor-not-allowed' : ''}
                                         title={isFullyApproved ? 'Cannot edit after approval' : 'Edit item'}
                                     />
                                 ) : (

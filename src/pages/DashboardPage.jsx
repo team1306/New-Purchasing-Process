@@ -90,6 +90,33 @@ export default function Dashboard({ user, onSignOut }) {
         }
     };
 
+    const handleBulkShippingChange = async (newShippingValue) => {
+        const confirmed = await showConfirm(
+            `Set shipping to $${parseFloat(newShippingValue).toFixed(2)} for ${selectedPurchases.length} item${selectedPurchases.length !== 1 ? 's' : ''}?`,
+            { confirmText: 'Update All', cancelText: 'Cancel' }
+        );
+        if (!confirmed) return;
+
+        try {
+            const validation = shippingController.validateShipping(newShippingValue);
+            if (!validation.valid) {
+                await showError(validation.error);
+                return;
+            }
+
+            // Update all selected purchases
+            const updatePromises = selectedPurchases.map(purchase =>
+                shippingController.updateShipping(purchase, newShippingValue)
+            );
+
+            await Promise.all(updatePromises);
+            refreshPurchases();
+        } catch (err) {
+            console.error('Error updating bulk shipping:', err);
+            await showError('Failed to update shipping for some items. Please try again.');
+        }
+    };
+
     // Apply filters and sorting
     const filteredPurchases = applyFiltersAndSort(purchases, {
         searchQuery,
@@ -198,6 +225,7 @@ export default function Dashboard({ user, onSignOut }) {
                 selectedPurchases={selectedPurchases}
                 onToggleSelect={handleToggleSelect}
                 onBulkStateChange={handleBulkStateChange}
+                onBulkShippingChange={isDirector ? handleBulkShippingChange : null}
             />
 
             {/* Modals */}

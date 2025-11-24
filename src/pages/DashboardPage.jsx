@@ -124,6 +124,7 @@ export default function Dashboard({ user, onSignOut }) {
         selectedStates,
         needsApprovalFilter,
         sortOption,
+        filterGroups: true,
         validation,
         userName: user.name
     });

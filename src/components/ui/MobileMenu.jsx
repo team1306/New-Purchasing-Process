@@ -30,7 +30,7 @@ export default function MobileMenu({
     };
 
     return (
-        <>
+        <div className="relative">
             {/* Trigger or Default Button */}
             {trigger ? (
                 <div onClick={() => setShowMenu(!showMenu)}>
@@ -42,6 +42,7 @@ export default function MobileMenu({
                     variant="ghost"
                     onClick={() => setShowMenu(!showMenu)}
                     title="Toggle menu"
+                    className="hover:bg-white/20"
                 />
             )}
 
@@ -60,6 +61,6 @@ export default function MobileMenu({
                     </div>
                 </div>
             )}
-        </>
+        </div>
     );
 }

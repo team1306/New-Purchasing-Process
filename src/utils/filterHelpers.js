@@ -7,6 +7,7 @@ export const applyFiltersAndSort = (
         selectedStates,
         needsApprovalFilter,
         sortOption,
+        filterGroups,
         validation,
         userName
     }
@@ -14,9 +15,14 @@ export const applyFiltersAndSort = (
     let filtered = [...purchases];
 
     // Filter by search query
-    if (searchQuery.trim() !== '') {
+    if (searchQuery.trim() !== '' && !filterGroups) {
         filtered = filtered.filter(purchase =>
             purchase['Item Description']?.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+    }
+    else if (searchQuery.trim() !== '' && filterGroups) {
+        filtered = filtered.filter(purchase =>
+            purchase['Item Description']?.toLowerCase().includes(searchQuery.toLowerCase()) || purchase['Group Name'].toLowerCase().includes(searchQuery.toLowerCase())
         );
     }
 

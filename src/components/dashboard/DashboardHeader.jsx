@@ -34,70 +34,72 @@ export default function DashboardHeader({
                         </div>
                     </div>
 
-                    <MobileMenu>
-                        {({ handleMenuAction }) => (
-                            <>
-                                <Button
-                                    variant="indigo"
-                                    onClick={() => handleMenuAction(onToggleViewMode)}
-                                    icon={viewMode === 'list' ? LayoutGrid : List}
-                                    fullWidth
-                                    className="justify-center"
-                                >
-                                    {viewMode === 'list' ? 'Group View' : 'List View'}
-                                </Button>
+                    <div className="flex-shrink-0">
+                        <MobileMenu>
+                            {({ handleMenuAction }) => (
+                                <>
+                                    <Button
+                                        variant="indigo"
+                                        onClick={() => handleMenuAction(onToggleViewMode)}
+                                        icon={viewMode === 'list' ? LayoutGrid : List}
+                                        fullWidth
+                                        className="justify-center"
+                                    >
+                                        {viewMode === 'list' ? 'Group View' : 'List View'}
+                                    </Button>
 
-                                <Button
-                                    variant="purple"
-                                    onClick={() => handleMenuAction(onToggleSelectionMode)}
-                                    icon={selectionMode ? Square : CheckSquare}
-                                    fullWidth
-                                    className="justify-center"
-                                >
-                                    {selectionMode ? 'Cancel Selection' : 'Multi-Select'}
-                                </Button>
+                                    <Button
+                                        variant="purple"
+                                        onClick={() => handleMenuAction(onToggleSelectionMode)}
+                                        icon={selectionMode ? Square : CheckSquare}
+                                        fullWidth
+                                        className="justify-center"
+                                    >
+                                        {selectionMode ? 'Cancel Selection' : 'Multi-Select'}
+                                    </Button>
 
-                                <Button
-                                    variant="success"
-                                    onClick={() => handleMenuAction(onCreateRequest)}
-                                    icon={Plus}
-                                    fullWidth
-                                    className="justify-center"
-                                >
-                                    Create Request
-                                </Button>
+                                    <Button
+                                        variant="success"
+                                        onClick={() => handleMenuAction(onCreateRequest)}
+                                        icon={Plus}
+                                        fullWidth
+                                        className="justify-center"
+                                    >
+                                        Create Request
+                                    </Button>
 
-                                <Button
-                                    variant="ghost"
-                                    onClick={() => handleMenuAction(onRefresh)}
-                                    loading={refreshing}
-                                    disabled={refreshing}
-                                    icon={RefreshCw}
-                                    fullWidth
-                                    className="justify-center"
-                                >
-                                    {refreshing ? 'Refreshing...' : 'Refresh'}
-                                </Button>
+                                    <Button
+                                        variant="ghost"
+                                        onClick={() => handleMenuAction(onRefresh)}
+                                        loading={refreshing}
+                                        disabled={refreshing}
+                                        icon={RefreshCw}
+                                        fullWidth
+                                        className="justify-center"
+                                    >
+                                        {refreshing ? 'Refreshing...' : 'Refresh'}
+                                    </Button>
 
-                                <Divider className="my-2" />
+                                    <Divider className="my-2" />
 
-                                <div className="bg-white/10 rounded-lg p-3">
-                                    <p className="font-semibold text-sm truncate">{user.name}</p>
-                                    <p className="text-xs text-blue-100 truncate">{user.email}</p>
-                                </div>
+                                    <div className="bg-white/10 rounded-lg p-3">
+                                        <p className="font-semibold text-sm truncate">{user.name}</p>
+                                        <p className="text-xs text-blue-100 truncate">{user.email}</p>
+                                    </div>
 
-                                <Button
-                                    variant="ghost"
-                                    onClick={() => handleMenuAction(onSignOut)}
-                                    icon={LogOut}
-                                    fullWidth
-                                    className="justify-center"
-                                >
-                                    Sign Out
-                                </Button>
-                            </>
-                        )}
-                    </MobileMenu>
+                                    <Button
+                                        variant="ghost"
+                                        onClick={() => handleMenuAction(onSignOut)}
+                                        icon={LogOut}
+                                        fullWidth
+                                        className="justify-center"
+                                    >
+                                        Sign Out
+                                    </Button>
+                                </>
+                            )}
+                        </MobileMenu>
+                    </div>
                 </div>
             </div>
 

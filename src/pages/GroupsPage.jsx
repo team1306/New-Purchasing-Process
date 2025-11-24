@@ -7,8 +7,8 @@ import PurchaseDetailModal from '../components/modals/PurchaseDetailModal.jsx';
 import RequestForm from '../components/RequestForm';
 import BulkActionBar from '../components/dashboard/BulkActionBar';
 import { PurchaseCard } from '../components/cards';
-import { usePurchaseManagement } from '../hooks/index.js';
-import { useFilters } from '../hooks/index.js';
+import { usePurchaseManagement } from '../hooks/usePurchaseManagement';
+import { useFilters } from '../hooks/useFilters';
 import { useAlert } from '../components/AlertContext';
 import { applyFiltersAndSort } from '../utils/filterHelpers';
 import { StateChangeController, ShippingController } from '../controllers';
@@ -152,6 +152,7 @@ export default function GroupsPage({
             selectedStates,
             needsApprovalFilter,
             sortOption,
+            filterGroups:true,
             validation,
             userName: user.name
         });
@@ -165,12 +166,15 @@ export default function GroupsPage({
             // Check if group name matches
             const groupNameMatches = groupName.toLowerCase().includes(searchQuery.toLowerCase());
 
-            // Check if any item in group matches
+            // If group name matches, keep all items in the group
+            if (groupNameMatches) return true;
+
+            // Otherwise, check if any item in group matches
             const itemMatches = groupPurchases.some(purchase =>
                 purchase['Item Description']?.toLowerCase().includes(searchQuery.toLowerCase())
             );
 
-            return groupNameMatches || itemMatches;
+            return itemMatches;
         });
     };
 
@@ -325,7 +329,17 @@ export default function GroupsPage({
 
                 {/* Grouped Items */}
                 {filteredGrouped.map(([groupName, groupPurchases]) => {
-                    const filteredGroupPurchases = applyFilters(groupPurchases);
+                    // If group name matches search, show all items, otherwise filter items
+                    const groupNameMatches = searchQuery.trim() &&
+                        groupName.toLowerCase().includes(searchQuery.toLowerCase());
+
+                    const filteredGroupPurchases = groupNameMatches
+                        ? applyFilters(groupPurchases)  // Show all items if group name matches
+                        : applyFilters(groupPurchases.filter(p =>
+                            !searchQuery.trim() ||
+                            p['Item Description']?.toLowerCase().includes(searchQuery.toLowerCase())
+                        ));
+
                     if (filteredGroupPurchases.length === 0) return null;
 
                     const isExpanded = expandedGroups.has(groupName);

@@ -2,7 +2,6 @@ import { Filter, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { Button, Select } from '../ui';
 import { filterClasses } from '../../styles/common-classes';
-import { animations } from '../../styles/design-tokens';
 import { CATEGORIES, STATES } from '../../utils/purchaseHelpers';
 
 export default function FilterPanel({

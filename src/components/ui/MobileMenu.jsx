@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Menu as MenuIcon, X } from 'lucide-react';
-import { IconButton, Divider } from '../ui';
+import { IconButton } from '../ui';
 import { mobileMenuClasses } from '../../styles/common-classes';
 
 export default function MobileMenu({

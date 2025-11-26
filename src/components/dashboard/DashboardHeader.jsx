@@ -83,8 +83,7 @@ export default function DashboardHeader({
                                     <Divider className="my-2" />
 
                                     <div className="bg-white/10 rounded-lg p-3">
-                                        <p className="font-semibold text-sm truncate">{user.name}</p>
-                                        <p className="text-xs text-blue-100 truncate">{user.email}</p>
+                                        <p className="font-semibold text-sm truncate text-gray-900">{user.name}</p>
                                     </div>
 
                                     <Button
@@ -92,7 +91,7 @@ export default function DashboardHeader({
                                         onClick={() => handleMenuAction(onSignOut)}
                                         icon={LogOut}
                                         fullWidth
-                                        className="justify-center"
+                                        className="justify-left text-gray-900"
                                     >
                                         Sign Out
                                     </Button>

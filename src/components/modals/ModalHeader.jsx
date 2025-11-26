@@ -24,19 +24,28 @@ const ModalHeader = forwardRef(({
         <PageHeader
             ref={ref}
             className="sticky top-0 z-30 shadow-lg"
-            onTouchStart={onTouchStart}
-            onTouchMove={onTouchMove}
-            onTouchEnd={onTouchEnd}
-            style={{ touchAction: 'none' }}
         >
-            {/* Drag Handle (Mobile Only) */}
-            <div className="md:hidden flex justify-center pt-3 pb-1">
+            {/* Drag Handle (Mobile Only) - This is the main drag area */}
+            <div
+                className="md:hidden flex justify-center pt-3 pb-1"
+                onTouchStart={onTouchStart}
+                onTouchMove={onTouchMove}
+                onTouchEnd={onTouchEnd}
+                style={{ touchAction: 'none' }}
+            >
                 <div className="w-12 h-1 bg-white/60 rounded-full"></div>
             </div>
 
             <div className="p-4 md:p-6">
                 <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
+                    {/* Title area - also draggable */}
+                    <div
+                        className="flex-1 min-w-0"
+                        onTouchStart={onTouchStart}
+                        onTouchMove={onTouchMove}
+                        onTouchEnd={onTouchEnd}
+                        style={{ touchAction: 'pan' }}
+                    >
                         <h2 className="text-lg md:text-2xl font-bold mb-1 truncate">
                             {purchase['Item Description']}
                         </h2>
@@ -48,6 +57,7 @@ const ModalHeader = forwardRef(({
                         </div>
                     </div>
 
+                    {/* Buttons - not draggable */}
                     <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
                         {canDelete && (
                             <IconButton

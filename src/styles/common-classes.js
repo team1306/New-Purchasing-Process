@@ -68,7 +68,7 @@ export const textClasses = {
 
 // Mobile menu classes for consistency
 export const mobileMenuClasses = {
-    container: 'absolute right-0 top-full mt-2 overflow-hidden transition-all duration-300 ease-in-out bg-white rounded-lg shadow-lg border border-white/20 z-50 min-w-[200px]',
+    container: 'fixed inset-x-4 top-4 overflow-hidden transition-all duration-300 ease-in-out bg-white rounded-lg shadow-2xl border border-gray-200 z-[60]',
     content: 'px-4 py-4 space-y-2',
     expanded: 'max-h-[600px] opacity-100',
     collapsed: 'max-h-0 opacity-0',

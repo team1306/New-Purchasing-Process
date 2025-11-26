@@ -1,24 +1,10 @@
 import { PurchaseCard } from '../cards';
-import { useAlert } from '../AlertContext';
 
 export default function PurchaseCardWrapper(props) {
-    const { showConfirm } = useAlert();
-
-    const handleStateChange = async (purchase, newState) => {
-        const confirmed = await showConfirm(
-            `Change state to "${newState}"?`,
-            { confirmText: 'Change State', cancelText: 'Cancel' }
-        );
-
-        if (confirmed) {
-            props.onStateChange(purchase, newState);
-        }
-    };
-
+    // Don't wrap with confirmation - let the parent (DashboardPage/GroupsPage) handle it
     return (
         <PurchaseCard
             {...props}
-            onStateChange={handleStateChange}
             showGroupTag={true}
         />
     );

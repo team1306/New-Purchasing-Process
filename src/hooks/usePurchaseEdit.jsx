@@ -6,7 +6,7 @@ import { updatePurchaseByRequestId, deletePurchaseByRequestId } from '../utils/g
 /**
  * Hook for managing purchase editing state and operations
  */
-export const usePurchaseEdit = (purchase, onUpdate, onClose, showConfirm, showError) => {
+export const usePurchaseEdit = (purchase, onUpdate, onClose, showConfirm, showError, userName = '', slackController = null) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editedPurchase, setEditedPurchase] = useState({});
     const [savingLoading, setSavingLoading] = useState(false);
@@ -45,6 +45,12 @@ export const usePurchaseEdit = (purchase, onUpdate, onClose, showConfirm, showEr
         try {
             setSavingLoading(true);
             await deletePurchaseByRequestId(purchase['Request ID'], await getRefreshedAccessToken());
+
+            // Log deletion to Slack
+            if (slackController && userName) {
+                await slackController.logDeletion(purchase, userName);
+            }
+
             onUpdate();
             onClose();
         } catch (err) {
@@ -78,7 +84,21 @@ export const usePurchaseEdit = (purchase, onUpdate, onClose, showConfirm, showEr
                 updates['M Approver'] = '';
             }
 
+            // Calculate changes for Slack logging
+            const changes = {};
+            Object.keys(updates).forEach(key => {
+                if (purchase[key] !== updates[key]) {
+                    changes[key] = `${purchase[key] || 'empty'} → ${updates[key] || 'empty'}`;
+                }
+            });
+
             await updatePurchaseByRequestId(purchase['Request ID'], updates, await getRefreshedAccessToken());
+
+            // Log edit to Slack
+            if (slackController && userName && Object.keys(changes).length > 0) {
+                await slackController.logEdit(purchase, changes, userName);
+            }
+
             onUpdate();
             setIsEditing(false);
         } catch (err) {

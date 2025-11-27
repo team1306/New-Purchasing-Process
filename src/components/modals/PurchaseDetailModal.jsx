@@ -7,6 +7,8 @@ import { useModalDrag } from '../../hooks/index.js';
 import ModalHeader from './ModalHeader.jsx';
 import EditActionsFooter from './EditActionsFooter.jsx';
 import PurchaseModalContent from './PurchaseModalContent.jsx';
+import SlackThreadSection from './SlackThreadSection.jsx';
+import { SlackController } from '../../controllers/index.js';
 import { animations } from '../../styles/design-tokens';
 
 export default function PurchaseDetailModal({
@@ -18,11 +20,15 @@ export default function PurchaseDetailModal({
                                                 existingPurchases = []
                                             }) {
     const [isClosing, setIsClosing] = useState(false);
+    const [creatingThread, setCreatingThread] = useState(false);
     const { showConfirm, showError } = useAlert();
 
     const sheetRef = useRef(null);
     const scrollRef = useRef(null);
     const headerRef = useRef(null);
+
+    // Initialize Slack controller
+    const [slackController] = useState(() => new SlackController(onUpdate, showError));
 
     // Custom hooks
     const {
@@ -35,13 +41,13 @@ export default function PurchaseDetailModal({
         handleCancelEdit,
         handleDeletePurchase,
         handleSaveEdit,
-    } = usePurchaseEdit(purchase, onUpdate, onClose, showConfirm, showError);
+    } = usePurchaseEdit(purchase, onUpdate, onClose, showConfirm, showError, user.name, slackController);
 
     const {
         approvalLoading,
         handleApprove,
         handleWithdrawApproval,
-    } = usePurchaseApproval(user.name, onUpdate, showConfirm, showError);
+    } = usePurchaseApproval(user.name, onUpdate, showConfirm, showError, slackController);
 
     const {
         getUserApprovalPermissions,
@@ -58,6 +64,17 @@ export default function PurchaseDetailModal({
         setTimeout(() => {
             onClose();
         }, 1);
+    };
+
+    const handleCreateSlackThread = async () => {
+        try {
+            setCreatingThread(true);
+            await slackController.createSlackThread(purchase);
+        } catch (error) {
+            console.error('Error creating Slack thread:', error);
+        } finally {
+            setCreatingThread(false);
+        }
     };
 
     // Custom hooks for drag functionality
@@ -158,6 +175,13 @@ export default function PurchaseDetailModal({
                         isApproverValid={isApproverValid}
                         inDisallowedState={inDisallowedState}
                         userApprovalPermissions={getUserApprovalPermissions}
+                    />
+
+                    {/* Slack Thread Section */}
+                    <SlackThreadSection
+                        purchase={purchase}
+                        onCreateThread={handleCreateSlackThread}
+                        creatingThread={creatingThread}
                     />
                 </div>
 

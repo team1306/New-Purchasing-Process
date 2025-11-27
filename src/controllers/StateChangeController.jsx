@@ -6,9 +6,11 @@ import { updatePurchaseByRequestId } from '../utils/googleSheets';
  * Centralizes the logic for state transitions and associated date updates
  */
 export class StateChangeController {
-    constructor(onUpdate, showError) {
+    constructor(onUpdate, showError, slackController = null, userName = '') {
         this.onUpdate = onUpdate;
         this.showError = showError;
+        this.slackController = slackController;
+        this.userName = userName;
     }
 
     /**
@@ -42,6 +44,8 @@ export class StateChangeController {
      * Change state for a single purchase
      */
     async changeState(purchase, newState) {
+        const previousState = purchase['State'];
+
         try {
             const updates = this.prepareStateUpdates(newState);
             await updatePurchaseByRequestId(
@@ -50,6 +54,12 @@ export class StateChangeController {
                 await getRefreshedAccessToken()
             );
             this.onUpdate();
+
+            // Log to Slack
+            if (this.slackController && this.userName) {
+                await this.slackController.logStateChange(purchase, previousState, newState, this.userName);
+            }
+
             return { success: true };
         } catch (err) {
             console.error('Error changing state:', err);
@@ -66,13 +76,19 @@ export class StateChangeController {
             const updates = this.prepareStateUpdates(newState);
 
             await Promise.all(
-                purchases.map(async purchase =>
-                    updatePurchaseByRequestId(
+                purchases.map(async purchase => {
+                    const previousState = purchase['State'];
+                    await updatePurchaseByRequestId(
                         purchase['Request ID'],
                         updates,
                         await getRefreshedAccessToken()
-                    )
-                )
+                    );
+
+                    // Log each state change to Slack
+                    if (this.slackController && this.userName) {
+                        await this.slackController.logStateChange(purchase, previousState, newState, this.userName);
+                    }
+                })
             );
 
             this.onUpdate();

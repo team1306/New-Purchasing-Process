@@ -5,7 +5,7 @@ import { updatePurchaseByRequestId } from '../utils/googleSheets';
 /**
  * Hook for managing purchase approval operations
  */
-export const usePurchaseApproval = (userName, onUpdate, showConfirm, showError) => {
+export const usePurchaseApproval = (userName, onUpdate, showConfirm, showError, slackController = null) => {
     const [approvalLoading, setApprovalLoading] = useState(false);
 
     const handleApprove = async (purchase, approvalType, isOverwrite = false) => {
@@ -32,6 +32,11 @@ export const usePurchaseApproval = (userName, onUpdate, showConfirm, showError) 
 
             await updatePurchaseByRequestId(purchase['Request ID'], updates, await getRefreshedAccessToken());
             onUpdate();
+
+            // Log to Slack
+            if (slackController) {
+                await slackController.logApproval(purchase, approvalType, userName);
+            }
         } catch (err) {
             console.error('Error approving purchase:', err);
             await showError(`Failed to approve: ${err.message}`);
@@ -51,6 +56,11 @@ export const usePurchaseApproval = (userName, onUpdate, showConfirm, showError) 
             }
             await updatePurchaseByRequestId(purchase['Request ID'], updates, await getRefreshedAccessToken());
             onUpdate();
+
+            // Log to Slack
+            if (slackController) {
+                await slackController.logApproval(purchase, approvalType, `${userName} (withdrawn)`);
+            }
         } catch (err) {
             console.error('Error withdrawing approval:', err);
             await showError(`Failed to withdraw approval: ${err.message}`);

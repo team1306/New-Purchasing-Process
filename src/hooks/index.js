@@ -8,3 +8,4 @@ export { usePurchaseManagement } from './usePurchaseManagement';
 export { useViewMode } from './useViewMode';
 export { usePurchaseEdit } from './usePurchaseEdit';
 export { usePurchaseApproval } from './usePurchaseApproval';
+export { useSlack } from './useSlack.jsx';

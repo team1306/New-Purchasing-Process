@@ -33,7 +33,6 @@ const ModalHeader = forwardRef(({
                 onTouchEnd={onTouchEnd}
                 style={{ touchAction: 'none' }}
             >
-                <div className="w-12 h-1 bg-white/60 rounded-full"></div>
             </div>
 
             <div className="p-4 md:p-6">

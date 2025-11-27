@@ -13,7 +13,7 @@ import { usePurchaseManagement } from '../hooks/index.js';
 import { useViewMode } from '../hooks/index.js';
 import { useAlert } from '../components/AlertContext';
 import { applyFiltersAndSort } from '../utils/filterHelpers';
-import { StateChangeController, ShippingController } from '../controllers';
+import { StateChangeController, ShippingController, SlackController } from '../controllers';
 import { PageContainer } from '../components/layout';
 import { Card } from '../components/ui';
 
@@ -54,8 +54,9 @@ export default function Dashboard({ user, onSignOut }) {
         handleToggleSelect,
     } = usePurchaseManagement();
 
-    // Initialize controllers
-    const [stateController] = useState(() => new StateChangeController(refreshPurchases, showError));
+    // Initialize controllers with Slack integration
+    const [slackController] = useState(() => new SlackController(refreshPurchases, showError));
+    const [stateController] = useState(() => new StateChangeController(refreshPurchases, showError, slackController, user.name));
     const [shippingController] = useState(() => new ShippingController(refreshPurchases, showError));
 
     // Wrapper functions that use controllers

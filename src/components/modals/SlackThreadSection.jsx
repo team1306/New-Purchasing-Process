@@ -20,6 +20,38 @@ export default function SlackThreadSection({ purchase, onCreateThread, creatingT
         });
     };
 
+    const getUserDisplayName = (message) => {
+        // Try to get the user's real name or fall back to user ID
+        if (message.user_profile?.real_name) {
+            return message.user_profile.real_name;
+        }
+        if (message.user_profile?.display_name) {
+            return message.user_profile.display_name;
+        }
+        if (message.username) {
+            return message.username;
+        }
+        return message.user || 'Unknown User';
+    };
+
+    const getUserInitials = (name) => {
+        const parts = name.split(' ');
+        if (parts.length >= 2) {
+            return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+        }
+        return name.substring(0, 2).toUpperCase();
+    };
+
+    const getSlackPermalink = () => {
+        const channelId = import.meta.env.VITE_SLACK_CHANNEL_ID;
+        const messageTs = purchase['Slack Message ID'];
+        const workspaceUrl = import.meta.env.VITE_SLACK_WORKSPACE_URL || 'https://slack.com';
+
+        // Format: p{timestamp without decimal}
+        const permalinkTs = messageTs.replace('.', '');
+        return `${workspaceUrl}/archives/${channelId}/p${permalinkTs}`;
+    };
+
     // If no Slack message ID, show create button
     if (!purchase['Slack Message ID']) {
         return (
@@ -80,7 +112,7 @@ export default function SlackThreadSection({ purchase, onCreateThread, creatingT
                 <div className={`mt-3 space-y-3 ${animations.slideDown}`}>
                     {/* Link to open in Slack */}
                     <a
-                        href={`slack://channel?team=YOUR_TEAM_ID&id=${import.meta.env.VITE_SLACK_CHANNEL_ID}&message=${purchase['Slack Message ID']}`}
+                        href={getSlackPermalink()}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 hover:underline transition-colors duration-200"
@@ -117,33 +149,36 @@ export default function SlackThreadSection({ purchase, onCreateThread, creatingT
                                 </div>
                             ) : (
                                 <div className="space-y-3 max-h-96 overflow-y-auto">
-                                    {replies.map((reply, index) => (
-                                        <div
-                                            key={reply.ts || index}
-                                            className="bg-white border border-gray-200 rounded-lg p-3 md:p-4 hover:shadow-sm transition-shadow duration-200"
-                                        >
-                                            <div className="flex items-start gap-3">
-                                                {reply.user && (
+                                    {replies.map((reply, index) => {
+                                        const displayName = getUserDisplayName(reply);
+                                        const initials = getUserInitials(displayName);
+
+                                        return (
+                                            <div
+                                                key={reply.ts || index}
+                                                className="bg-white border border-gray-200 rounded-lg p-3 md:p-4 hover:shadow-sm transition-shadow duration-200"
+                                            >
+                                                <div className="flex items-start gap-3">
                                                     <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
-                                                        {reply.user.charAt(0).toUpperCase()}
+                                                        {initials}
                                                     </div>
-                                                )}
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-baseline gap-2 mb-1">
-                                                        <p className="font-semibold text-sm text-gray-800">
-                                                            {reply.user || 'Unknown User'}
-                                                        </p>
-                                                        <p className="text-xs text-gray-500">
-                                                            {formatTimestamp(reply.ts)}
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-baseline gap-2 mb-1">
+                                                            <p className="font-semibold text-sm text-gray-800">
+                                                                {displayName}
+                                                            </p>
+                                                            <p className="text-xs text-gray-500">
+                                                                {formatTimestamp(reply.ts)}
+                                                            </p>
+                                                        </div>
+                                                        <p className="text-sm text-gray-700 whitespace-pre-wrap break-words">
+                                                            {reply.text}
                                                         </p>
                                                     </div>
-                                                    <p className="text-sm text-gray-700 whitespace-pre-wrap break-words">
-                                                        {reply.text}
-                                                    </p>
                                                 </div>
                                             </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             )}
                         </>

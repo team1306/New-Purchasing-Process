@@ -1,5 +1,4 @@
 // Frontend now ONLY talks to your Vercel backend.
-// No Slack tokens — completely safe.
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 const SLACK_CHANNEL_ID = import.meta.env.VITE_SLACK_CHANNEL_ID;
@@ -32,7 +31,6 @@ export const sendSlackMessage = async (blocks, threadTs = null) => {
         if (!data.ok) {
             throw new Error(`Slack API error: ${data.error}`);
         }
-
         return data.ts;
     } catch (error) {
         console.error('Error sending Slack message:', error);
@@ -55,7 +53,7 @@ export const getThreadReplies = async (threadTs) => {
             throw new Error(`Slack API error: ${data.error}`);
         }
 
-        // same filtering logic as before
+        // Filter out bot messages and the parent message
         const replies = data.messages.filter((msg, index) =>
             index > 0 && (!msg.bot_id || msg.subtype !== 'bot_message')
         );
@@ -120,14 +118,14 @@ export const buildPurchaseRequestBlocks = (purchase) => {
         },
         {
             type: 'mrkdwn',
-            text: `*Unit Price:*\n$${parseFloat(purchase['Unit Price'] || 0).toFixed(2)}`
+            text: `*Unit Price:*\n${parseFloat(purchase['Unit Price'] || 0).toFixed(2)}`
         }
     ];
 
     if (purchase['Shipping'] && parseFloat(purchase['Shipping']) > 0) {
         costFields.push({
             type: 'mrkdwn',
-            text: `*Shipping:*\n$${parseFloat(purchase['Shipping']).toFixed(2)}`
+            text: `*Shipping:*\n${parseFloat(purchase['Shipping']).toFixed(2)}`
         });
     }
 
@@ -138,7 +136,7 @@ export const buildPurchaseRequestBlocks = (purchase) => {
 
     costFields.push({
         type: 'mrkdwn',
-        text: `*Total Cost:*\n$${total.toFixed(2)}`
+        text: `*Total Cost:*\n${total.toFixed(2)}`
     });
 
     blocks.push({

@@ -59,7 +59,7 @@ export const usePurchaseApproval = (userName, onUpdate, showConfirm, showError, 
 
             // Log to Slack
             if (slackController) {
-                await slackController.logApproval(purchase, approvalType, `${userName}`, false);
+                await slackController.logApproval(purchase, approvalType, `${userName}`, true);
             }
         } catch (err) {
             console.error('Error withdrawing approval:', err);

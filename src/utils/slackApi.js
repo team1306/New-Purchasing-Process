@@ -58,8 +58,9 @@ export const getThreadReplies = async (threadTs) => {
         }
 
         // Filter out bot messages and the parent message
-        const replies = data.messages.filter((msg, index) =>
-            index > 0 && (!msg.bot_id || msg.subtype !== 'bot_message')
+        const replies = data.messages.filter((msg, index) => {
+                return index > 0 && (!msg.user_profile.is_bot);
+            }
         );
 
         return replies;
@@ -213,12 +214,13 @@ export const buildStateChangeBlocks = (purchase, previousState, newState, userNa
  */
 export const buildApprovalBlocks = (purchase, approvalType, userName, withdrawn) => {
     const typeLabel = approvalType === 'student' ? 'Student' : 'Mentor';
+    const withdrawnLabel = withdrawn ? 'Withdrawn' : 'Approval';
     return [
         {
             type: 'section',
             text: {
                 type: 'mrkdwn',
-                text: `*${typeLabel} ${withdrawn ? "Approved" : "Withdrawn"}*\nBy: ${userName}`
+                text: `*${typeLabel} ${withdrawnLabel}*\nBy: ${userName}`
             }
         }
     ];

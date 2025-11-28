@@ -283,7 +283,7 @@ export const buildDeleteBlocks = (purchase, userName) => {
             type: 'section',
             text: {
                 type: 'mrkdwn',
-                text: `*Purchase Deleted*\nItem: ${purchase['Item Description']}\nBy: ${userName}`
+                text: `*Purchase Deleted*\nBy: ${userName}`
             }
         }
     ];

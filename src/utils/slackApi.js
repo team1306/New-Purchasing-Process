@@ -1,4 +1,7 @@
 // Frontend now ONLY talks to your Vercel backend.
+// No Slack tokens – completely safe.
+
+import {parseCurrency} from "./purchaseHelpers.js";
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 const SLACK_CHANNEL_ID = import.meta.env.VITE_SLACK_CHANNEL_ID;
@@ -31,6 +34,7 @@ export const sendSlackMessage = async (blocks, threadTs = null) => {
         if (!data.ok) {
             throw new Error(`Slack API error: ${data.error}`);
         }
+
         return data.ts;
     } catch (error) {
         console.error('Error sending Slack message:', error);
@@ -118,25 +122,25 @@ export const buildPurchaseRequestBlocks = (purchase) => {
         },
         {
             type: 'mrkdwn',
-            text: `*Unit Price:*\n${parseFloat(purchase['Unit Price'] || 0).toFixed(2)}`
+            text: `*Unit Price:*\n$${parseCurrency(purchase['Unit Price'] || 0).toFixed(2)}`
         }
     ];
 
     if (purchase['Shipping'] && parseFloat(purchase['Shipping']) > 0) {
         costFields.push({
             type: 'mrkdwn',
-            text: `*Shipping:*\n${parseFloat(purchase['Shipping']).toFixed(2)}`
+            text: `*Shipping:*\n$${parseFloat(purchase['Shipping']).toFixed(2)}`
         });
     }
 
     const quantity = parseFloat(purchase['Quantity'] || 0);
-    const unitPrice = parseFloat(purchase['Unit Price'] || 0);
-    const shipping = parseFloat(purchase['Shipping'] || 0);
+    const unitPrice = parseCurrency(purchase['Unit Price'] || 0);
+    const shipping = parseCurrency(purchase['Shipping'] || 0);
     const total = (quantity * unitPrice) + shipping;
 
     costFields.push({
         type: 'mrkdwn',
-        text: `*Total Cost:*\n${total.toFixed(2)}`
+        text: `*Total Cost:*\n$${total.toFixed(2)}`
     });
 
     blocks.push({
@@ -207,14 +211,14 @@ export const buildStateChangeBlocks = (purchase, previousState, newState, userNa
 /**
  * Approval blocks
  */
-export const buildApprovalBlocks = (purchase, approvalType, userName) => {
-    const typeLabel = approvalType === 'student' ? 'Student Approver' : 'Mentor Approver';
+export const buildApprovalBlocks = (purchase, approvalType, userName, withdrawn) => {
+    const typeLabel = approvalType === 'student' ? 'Student' : 'Mentor';
     return [
         {
             type: 'section',
             text: {
                 type: 'mrkdwn',
-                text: `*${typeLabel} Approved*\nBy: ${userName}`
+                text: `*${typeLabel} ${withdrawn ? "Approved" : "Withdrawn"}*\nBy: ${userName}`
             }
         }
     ];

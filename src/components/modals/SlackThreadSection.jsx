@@ -21,16 +21,11 @@ export default function SlackThreadSection({ purchase, onCreateThread, creatingT
     };
 
     const getUserDisplayName = (message) => {
-        // Try to get the user's real name or fall back to user ID
-        if (message.user_profile?.real_name) {
-            return message.user_profile.real_name;
-        }
+        // Use the display_name from user_profile (set by backend)
         if (message.user_profile?.display_name) {
             return message.user_profile.display_name;
         }
-        if (message.username) {
-            return message.username;
-        }
+        // Fallback to user ID if no profile info
         return message.user || 'Unknown User';
     };
 
@@ -40,6 +35,14 @@ export default function SlackThreadSection({ purchase, onCreateThread, creatingT
             return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
         }
         return name.substring(0, 2).toUpperCase();
+    };
+
+    const getUserAvatar = (message) => {
+        // Use Slack avatar if available
+        if (message.user_profile?.image) {
+            return message.user_profile.image;
+        }
+        return null;
     };
 
     const getSlackPermalink = () => {
@@ -152,6 +155,7 @@ export default function SlackThreadSection({ purchase, onCreateThread, creatingT
                                     {replies.map((reply, index) => {
                                         const displayName = getUserDisplayName(reply);
                                         const initials = getUserInitials(displayName);
+                                        const avatar = getUserAvatar(reply);
 
                                         return (
                                             <div
@@ -159,9 +163,17 @@ export default function SlackThreadSection({ purchase, onCreateThread, creatingT
                                                 className="bg-white border border-gray-200 rounded-lg p-3 md:p-4 hover:shadow-sm transition-shadow duration-200"
                                             >
                                                 <div className="flex items-start gap-3">
-                                                    <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
-                                                        {initials}
-                                                    </div>
+                                                    {avatar ? (
+                                                        <img
+                                                            src={avatar}
+                                                            alt={displayName}
+                                                            className="w-8 h-8 rounded-full flex-shrink-0"
+                                                        />
+                                                    ) : (
+                                                        <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
+                                                            {initials}
+                                                        </div>
+                                                    )}
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-baseline gap-2 mb-1">
                                                             <p className="font-semibold text-sm text-gray-800">

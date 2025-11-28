@@ -23,7 +23,7 @@ export class SlackController {
      */
     async createSlackThread(purchase) {
         try {
-            const blocks = buildPurchaseRequestBlocks(purchase);
+            const blocks = await buildPurchaseRequestBlocks(purchase);
             const messageId = await sendSlackMessage(blocks);
 
             // Update the purchase with the Slack Message ID
@@ -54,7 +54,7 @@ export class SlackController {
         if (!purchase['Slack Message ID']) return;
 
         try {
-            const blocks = buildStateChangeBlocks(purchase, previousState, newState, userName);
+            const blocks = await buildStateChangeBlocks(purchase, previousState, newState, userName);
             await sendSlackMessage(blocks, purchase['Slack Message ID']);
         } catch (error) {
             console.error('Error logging state change to Slack:', error);
@@ -65,11 +65,14 @@ export class SlackController {
     /**
      * Log approval to Slack thread
      */
-    async logApproval(purchase, approvalType, userName) {
+    async logApproval(purchase, approvalType, userName, withdrawn) {
         if (!purchase['Slack Message ID']) return;
 
         try {
-            const blocks = buildApprovalBlocks(purchase, approvalType, userName);
+            // Check if this is a withdrawal
+            const blocks = await buildApprovalBlocks(purchase, approvalType, userName, withdrawn);
+
+
             await sendSlackMessage(blocks, purchase['Slack Message ID']);
         } catch (error) {
             console.error('Error logging approval to Slack:', error);
@@ -84,7 +87,7 @@ export class SlackController {
         if (!purchase['Slack Message ID']) return;
 
         try {
-            const blocks = buildEditBlocks(purchase, changes, userName);
+            const blocks = await buildEditBlocks(purchase, changes, userName);
             await sendSlackMessage(blocks, purchase['Slack Message ID']);
         } catch (error) {
             console.error('Error logging edit to Slack:', error);
@@ -99,7 +102,7 @@ export class SlackController {
         if (!purchase['Slack Message ID']) return;
 
         try {
-            const blocks = buildDeleteBlocks(purchase, userName);
+            const blocks = await buildDeleteBlocks(purchase, userName);
             await sendSlackMessage(blocks, purchase['Slack Message ID']);
         } catch (error) {
             console.error('Error logging deletion to Slack:', error);

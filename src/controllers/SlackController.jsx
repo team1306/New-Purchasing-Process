@@ -4,7 +4,7 @@ import {
     buildStateChangeBlocks,
     buildApprovalBlocks,
     buildEditBlocks,
-    buildDeleteBlocks
+    buildDeleteBlocks, getCurrentUserSlackId
 } from '../utils/slackApi';
 import { getRefreshedAccessToken } from '../utils/googleAuth';
 import { updatePurchaseByRequestId } from '../utils/googleSheets';
@@ -21,17 +21,24 @@ export class SlackController {
     /**
      * Create initial Slack thread for a purchase
      */
-    async createSlackThread(purchase) {
+    async createSlackThread(purchase, skipSheets) {
         try {
-            const blocks = await buildPurchaseRequestBlocks(purchase);
+            let slackName = await getCurrentUserSlackId(purchase['Requester']);
+            if(!slackName) {
+                slackName = purchase['Requester'];
+            }
+
+            const blocks = await buildPurchaseRequestBlocks(purchase, slackName);
             const messageId = await sendSlackMessage(blocks);
 
             // Update the purchase with the Slack Message ID
-            await updatePurchaseByRequestId(
-                purchase['Request ID'],
-                { 'Slack Message ID': messageId },
-                await getRefreshedAccessToken()
-            );
+            if(!skipSheets) {
+                await updatePurchaseByRequestId(
+                    purchase['Request ID'],
+                    {'Slack Message ID': messageId},
+                    await getRefreshedAccessToken()
+                );
+            }
 
             if (this.onUpdate) {
                 this.onUpdate();
@@ -54,7 +61,9 @@ export class SlackController {
         if (!purchase['Slack Message ID']) return;
 
         try {
-            const blocks = await buildStateChangeBlocks(purchase, previousState, newState, userName);
+            const slackName = await getCurrentUserSlackId(userName);
+
+            const blocks = await buildStateChangeBlocks(purchase, previousState, newState, slackName);
             await sendSlackMessage(blocks, purchase['Slack Message ID']);
         } catch (error) {
             console.error('Error logging state change to Slack:', error);
@@ -70,7 +79,10 @@ export class SlackController {
 
         try {
             // Check if this is a withdrawal
-            const blocks = await buildApprovalBlocks(purchase, approvalType, userName, withdrawn);
+
+            const slackName = await getCurrentUserSlackId(userName);
+
+            const blocks = await buildApprovalBlocks(purchase, approvalType, slackName, withdrawn);
 
 
             await sendSlackMessage(blocks, purchase['Slack Message ID']);
@@ -80,6 +92,8 @@ export class SlackController {
         }
     }
 
+
+
     /**
      * Log edit to Slack thread
      */
@@ -87,7 +101,9 @@ export class SlackController {
         if (!purchase['Slack Message ID']) return;
 
         try {
-            const blocks = await buildEditBlocks(purchase, changes, userName);
+            const slackName = await getCurrentUserSlackId(userName);
+
+            const blocks = await buildEditBlocks(purchase, changes, slackName);
             await sendSlackMessage(blocks, purchase['Slack Message ID']);
         } catch (error) {
             console.error('Error logging edit to Slack:', error);
@@ -102,7 +118,9 @@ export class SlackController {
         if (!purchase['Slack Message ID']) return;
 
         try {
-            const blocks = await buildDeleteBlocks(purchase, userName);
+            const slackName = await getCurrentUserSlackId(userName);
+
+            const blocks = await buildDeleteBlocks(purchase, slackName);
             await sendSlackMessage(blocks, purchase['Slack Message ID']);
         } catch (error) {
             console.error('Error logging deletion to Slack:', error);

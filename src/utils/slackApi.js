@@ -71,9 +71,38 @@ export const getThreadReplies = async (threadTs) => {
 };
 
 /**
+ * Find Slack user ID for the currently logged-in user
+ * Calls your Vercel backend /api/findUser?name=...
+ */
+export const getCurrentUserSlackId = async (displayName) => {
+    try {
+        const url = `${BACKEND_URL}/api/findUser?name=${encodeURIComponent(displayName)}`;
+        const response = await fetch(url);
+
+        const data = await response.json();
+
+        if (!data.ok) {
+            throw new Error(`Slack findUser error: ${data.error}`);
+        }
+
+        // Returned when score >= 90%
+        if (data.userId) {
+            return `<@${data.userId}>`;
+        }
+
+        // No strong match
+        return null;
+
+    } catch (error) {
+        console.error("Error finding Slack user:", error);
+        throw error;
+    }
+};
+
+/**
  * Build blocks for a new purchase request
  */
-export const buildPurchaseRequestBlocks = (purchase) => {
+export const buildPurchaseRequestBlocks = (purchase, userName) => {
     const blocks = [
         {
             type: 'header',
@@ -92,7 +121,7 @@ export const buildPurchaseRequestBlocks = (purchase) => {
                 },
                 {
                     type: 'mrkdwn',
-                    text: `*Requestor:*\n${purchase['Requester'] || 'N/A'}`
+                    text: `*Requestor:*\n${userName || 'N/A'}`
                 },
                 {
                     type: 'mrkdwn',

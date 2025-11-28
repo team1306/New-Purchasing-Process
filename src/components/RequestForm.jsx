@@ -1,17 +1,20 @@
-import { useState, useEffect } from 'react';
-import { X, PlusCircle } from 'lucide-react';
-import { createPurchase } from '../utils/googleSheets.js';
-import { getRefreshedAccessToken } from '../utils/googleAuth.js';
-import { useAlert } from './AlertContext';
-import { Button, Alert } from './ui';
-import { FormField, CurrencyInput, FormRow } from './forms';
-import { PageHeader } from './layout';
+import {useEffect, useState} from 'react';
+import {PlusCircle, X} from 'lucide-react';
+import {createPurchase, createRequestId} from '../utils/googleSheets.js';
+import {getRefreshedAccessToken} from '../utils/googleAuth.js';
+import {useAlert} from './AlertContext';
+import {Alert, Button} from './ui';
+import {CurrencyInput, FormField, FormRow} from './forms';
+import {PageHeader} from './layout';
 import GroupNameAutocomplete from './groups/GroupNameAutoComplete.jsx';
-import { CATEGORIES } from '../utils/purchaseHelpers';
-import { animations } from '../styles/design-tokens';
+import {CATEGORIES} from '../utils/purchaseHelpers';
+import {animations} from '../styles/design-tokens';
+import {SlackController} from "../controllers/index.js";
 
 export default function RequestForm({ user, onClose, onCreated, presetFields = {}, existingPurchases = [] }) {
     const { showError } = useAlert();
+
+    const [slackController] = useState(() => new SlackController(null, showError));
 
     // Get today's date in local timezone
     const getLocalDate = () => {
@@ -75,6 +78,9 @@ export default function RequestForm({ user, onClose, onCreated, presetFields = {
         try {
             setSavingLoading(true);
             newRequest['Requester'] = user.name;
+            newRequest["Request ID"] = createRequestId();
+            newRequest['Slack Message ID'] = await slackController.createSlackThread(newRequest, true);
+
             await createPurchase(newRequest, await getRefreshedAccessToken());
 
             if (onCreated) onCreated();

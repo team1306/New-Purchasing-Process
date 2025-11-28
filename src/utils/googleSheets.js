@@ -301,11 +301,10 @@ export const createPurchase = async (purchaseData, accessToken) => {
         if (!headerRow) throw new Error('Header row not found in Purchases sheet');
 
         // Generate a unique Request ID using Unix timestamp
-        const requestId = Math.floor(Date.now() / 1000);
 
         // Map header to values; ensure all values are strings and non-null
         const newRow = headerRow.map(header => {
-            if (header === 'Request ID') return String(requestId);
+            if (header === 'Request ID') return String(purchaseData["Request ID"]);
             const value = purchaseData[header];
             return value != null ? String(value) : '';
         });
@@ -327,3 +326,7 @@ export const createPurchase = async (purchaseData, accessToken) => {
         throw error;
     }
 };
+
+export const createRequestId = () => {
+    return Math.floor(Date.now() / 1000);
+}

@@ -69,7 +69,7 @@ export default function PurchaseDetailModal({
     const handleCreateSlackThread = async () => {
         try {
             setCreatingThread(true);
-            await slackController.createSlackThread(purchase);
+            await slackController.createSlackThread(purchase, false);
         } catch (error) {
             console.error('Error creating Slack thread:', error);
         } finally {

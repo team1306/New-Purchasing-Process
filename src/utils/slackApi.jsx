@@ -375,7 +375,7 @@ export const buildPurchaseRequestBlocks = (purchase, userName) => {
 };
 
 /**
- * State change notification blocks
+ * State change notification block
  */
 export const buildStateChangeBlocks = (purchase, previousState, newState, userName) => {
     return [

@@ -96,7 +96,7 @@ export const usePurchaseEdit = (purchase, onUpdate, onClose, showConfirm, showEr
 
             // Log edit to Slack
             if (slackController && userName && Object.keys(changes).length > 0) {
-                await slackController.logEdit(purchase, changes, userName);
+                await slackController.logEdit(purchase, changes, updates, userName);
             }
 
             onUpdate();

@@ -5,6 +5,14 @@ let tokenClient;
 let accessToken = null;
 let pickerInited = false;
 let gisInited = false;
+let tokenRefreshCallback = null;
+
+/**
+ * Set callback for when token needs refresh
+ */
+export const setTokenRefreshCallback = (callback) => {
+    tokenRefreshCallback = callback;
+};
 
 /**
  * Initialize Google OAuth (combines sign-in and Drive access)
@@ -351,13 +359,98 @@ export const getAccessToken = () => {
     return accessToken;
 };
 
+/**
+ * Attempt to refresh the token silently
+ */
+const refreshToken = () => {
+    return new Promise((resolve, reject) => {
+        if (!tokenClient) {
+            reject(new Error('OAuth client not initialized'));
+            return;
+        }
+
+        tokenClient.callback = (tokenResponse) => {
+            if (tokenResponse.error) {
+                reject(new Error(`OAuth error: ${tokenResponse.error}`));
+                return;
+            }
+
+            // Extract user info from ID token if available
+            if (tokenResponse.id_token) {
+                const userInfo = parseJwt(tokenResponse.id_token);
+                accessToken = tokenResponse.access_token;
+                localStorage.setItem('drive_access_token', accessToken);
+                localStorage.setItem('drive_token_expiry', Date.now() + (tokenResponse.expires_in * 1000));
+
+                resolve({
+                    accessToken,
+                    user: {
+                        name: userInfo.name,
+                        email: userInfo.email,
+                        picture: userInfo.picture
+                    }
+                });
+            } else {
+                // Fallback: just return access token
+                accessToken = tokenResponse.access_token;
+                localStorage.setItem('drive_access_token', accessToken);
+                localStorage.setItem('drive_token_expiry', Date.now() + (tokenResponse.expires_in * 1000));
+
+                // Fetch user info separately
+                fetchUserInfo(accessToken)
+                    .then(user => resolve({ accessToken, user }))
+                    .catch(() => resolve({ accessToken, user: null }));
+            }
+        };
+
+        // Request access token without prompt (silent refresh)
+        try {
+            tokenClient.requestAccessToken({ prompt: '' });
+        } catch (err) {
+            reject(new Error('Failed to refresh access token'));
+        }
+    });
+};
+
 export const getRefreshedAccessToken = async () => {
     let token = getAccessToken();
+
+    // Check if token is expired or about to expire
+    const tokenExpiry = localStorage.getItem('drive_token_expiry');
+    const now = Date.now();
+    const expiryTime = tokenExpiry ? parseInt(tokenExpiry) : 0;
+    const timeUntilExpiry = expiryTime - now;
+
+    // If token expires in less than 5 minutes or already expired, try to refresh
+    if (!token || timeUntilExpiry < 5 * 60 * 1000) {
+        console.log('Token expired or about to expire, attempting refresh...');
+
+        try {
+            // Try to get a new token silently
+            const result = await refreshToken();
+            if (result.accessToken) {
+                token = result.accessToken;
+            } else {
+                throw new Error('Failed to refresh token');
+            }
+        } catch (error) {
+            console.error('Token refresh failed:', error);
+
+            // Notify the app that token refresh failed
+            if (tokenRefreshCallback) {
+                tokenRefreshCallback(error);
+            }
+
+            throw new Error('Authentication expired. Please sign in again.');
+        }
+    }
+
     if (!token) {
         throw new Error('No valid access token. Please sign in again.');
     }
+
     return token;
-}
+};
 
 /**
  * Clear saved tokens and spreadsheet selection on sign out

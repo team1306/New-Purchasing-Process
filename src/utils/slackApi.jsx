@@ -1,7 +1,9 @@
 // Frontend now ONLY talks to your Vercel backend.
-// No Slack tokens – completely safe.
+// No Slack tokens — completely safe.
 
-import {parseCurrency} from "./purchaseHelpers.js";
+import { parseCurrency } from "./purchaseHelpers.js";
+import { slackUserCache } from "./slackUserCache.js";
+import { reportError } from "./errorReporter.js";
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 const SLACK_CHANNEL_ID = import.meta.env.VITE_SLACK_CHANNEL_ID;
@@ -32,12 +34,59 @@ export const sendSlackMessage = async (blocks, threadTs = null) => {
         const data = await response.json();
 
         if (!data.ok) {
-            throw new Error(`Slack API error: ${data.error}`);
+            const error = new Error(`Slack API error: ${data.error || 'Unknown error'}`);
+            error.details = data.details;
+            throw error;
         }
 
         return data.ts;
     } catch (error) {
         console.error('Error sending Slack message:', error);
+        await reportError(error, {
+            context: 'sendSlackMessage',
+            threadTs,
+            hasBlocks: !!blocks
+        });
+        throw error;
+    }
+};
+
+/**
+ * Update an existing Slack message
+ */
+export const updateSlackMessage = async (messageTs, blocks) => {
+    try {
+        const payload = {
+            channel: SLACK_CHANNEL_ID,
+            ts: messageTs,
+            blocks,
+            text: 'Purchase Request Update'
+        };
+
+        const response = await fetch(`${BACKEND_URL}/api/updateMessage`, {
+            method: 'POST',
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+
+        if (!data.ok) {
+            const error = new Error(`Slack API error: ${data.error || 'Unknown error'}`);
+            error.details = data.details;
+            throw error;
+        }
+
+        return data.ts;
+    } catch (error) {
+        console.error('Error updating Slack message:', error);
+        await reportError(error, {
+            context: 'updateSlackMessage',
+            messageTs,
+            hasBlocks: !!blocks
+        });
         throw error;
     }
 };
@@ -54,7 +103,9 @@ export const getThreadReplies = async (threadTs) => {
         const data = await response.json();
 
         if (!data.ok) {
-            throw new Error(`Slack API error: ${data.error}`);
+            const error = new Error(`Slack API error: ${data.error || 'Unknown error'}`);
+            error.details = data.details;
+            throw error;
         }
 
         // Filter out bot messages and the parent message
@@ -66,28 +117,27 @@ export const getThreadReplies = async (threadTs) => {
         return replies;
     } catch (error) {
         console.error('Error fetching thread replies:', error);
+        await reportError(error, {
+            context: 'getThreadReplies',
+            threadTs
+        });
         throw error;
     }
 };
 
 /**
- * Find Slack user ID for the currently logged-in user
- * Calls your Vercel backend /api/findUser?name=...
+ * Find Slack user ID for the currently logged-in user (using cache)
  */
 export const getCurrentUserSlackId = async (displayName) => {
     try {
-        const url = `${BACKEND_URL}/api/findUser?name=${encodeURIComponent(displayName)}`;
-        const response = await fetch(url);
+        // Ensure users are loaded
+        await slackUserCache.loadUsers();
 
-        const data = await response.json();
+        // Find user in cache
+        const user = slackUserCache.findUserByName(displayName);
 
-        if (!data.ok) {
-            throw new Error(`Slack findUser error: ${data.error}`);
-        }
-
-        // Returned when score >= 90%
-        if (data.userId) {
-            return `<@${data.userId}>`;
+        if (user) {
+            return `<@${user.id}>`;
         }
 
         // No strong match
@@ -95,8 +145,109 @@ export const getCurrentUserSlackId = async (displayName) => {
 
     } catch (error) {
         console.error("Error finding Slack user:", error);
+        await reportError(error, {
+            context: 'getCurrentUserSlackId',
+            displayName
+        });
         throw error;
     }
+};
+
+/**
+ * Format Slack text with proper links and mentions
+ */
+export const formatSlackText = (text) => {
+    if (!text) return '';
+
+    let formatted = text;
+
+    // Convert user mentions: <@U12345> -> display name
+    formatted = formatted.replace(/<@([A-Z0-9]+)>/g, (match, userId) => {
+        const user = slackUserCache.getUserById(userId);
+        if (user) {
+            return `@${user.displayName || user.realName || user.name}`;
+        }
+        return match;
+    });
+
+    // Convert links: <http://example.com|Example> -> clickable link
+    formatted = formatted.replace(/<(https?:\/\/[^|>]+)\|([^>]+)>/g, (match, url, text) => {
+        return text; // In plain text, just show the link text
+    });
+
+    // Convert bare links: <http://example.com> -> clickable link
+    formatted = formatted.replace(/<(https?:\/\/[^>]+)>/g, (match, url) => {
+        return url; // Show the full URL
+    });
+
+    return formatted;
+};
+
+/**
+ * Convert formatted text to clickable JSX elements
+ */
+export const renderSlackText = (text) => {
+    if (!text) return null;
+
+    const parts = [];
+    let lastIndex = 0;
+
+    // Match user mentions and links
+    const regex = /<@([A-Z0-9]+)>|<(https?:\/\/[^|>]+)\|([^>]+)>|<(https?:\/\/[^>]+)>/g;
+    let match;
+
+    while ((match = regex.exec(text)) !== null) {
+        // Add text before match
+        if (match.index > lastIndex) {
+            parts.push(text.substring(lastIndex, match.index));
+        }
+
+        if (match[1]) {
+            // User mention
+            const userId = match[1];
+            const user = slackUserCache.getUserById(userId);
+            parts.push(
+                <span key={match.index} className="text-blue-600 font-semibold">
+                    @{user ? (user.displayName || user.realName || user.name) : userId}
+                </span>
+            );
+        } else if (match[2] && match[3]) {
+            // Link with text
+            parts.push(
+                <a
+                    key={match.index}
+                    href={match[2]}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline"
+                >
+                    {match[3]}
+                </a>
+            );
+        } else if (match[4]) {
+            // Bare link
+            parts.push(
+                <a
+                    key={match.index}
+                    href={match[4]}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline break-all"
+                >
+                    {match[4]}
+                </a>
+            );
+        }
+
+        lastIndex = regex.lastIndex;
+    }
+
+    // Add remaining text
+    if (lastIndex < text.length) {
+        parts.push(text.substring(lastIndex));
+    }
+
+    return parts.length > 0 ? parts : text;
 };
 
 /**
@@ -283,7 +434,7 @@ export const buildDeleteBlocks = (purchase, userName) => {
             type: 'section',
             text: {
                 type: 'mrkdwn',
-                text: `*Purchase Deleted*\nBy: ${userName}`
+                text: `*🗑️ Purchase Deleted*\nBy: ${userName}\n\n_This request has been removed from the system._`
             }
         }
     ];

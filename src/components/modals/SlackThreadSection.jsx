@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { MessageSquare, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
 import { Button, Spinner, Alert } from '../ui';
 import { useSlack } from '../../hooks/useSlack';
+import { renderSlackText } from '../../utils/slackApi';
 import { animations } from '../../styles/design-tokens';
 
 export default function SlackThreadSection({ purchase, onCreateThread, creatingThread }) {
@@ -183,9 +184,9 @@ export default function SlackThreadSection({ purchase, onCreateThread, creatingT
                                                                 {formatTimestamp(reply.ts)}
                                                             </p>
                                                         </div>
-                                                        <p className="text-sm text-gray-700 whitespace-pre-wrap break-words">
-                                                            {reply.text}
-                                                        </p>
+                                                        <div className="text-sm text-gray-700 whitespace-pre-wrap break-words">
+                                                            {renderSlackText(reply.text)}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>

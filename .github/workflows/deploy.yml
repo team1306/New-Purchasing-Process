@@ -44,6 +44,8 @@ jobs:
           VITE_PICKER_ID: ${{ secrets.VITE_PICKER_ID }}
           VITE_PROJECT: ${{ secrets.VITE_PROJECT }}
           VITE_SPREADSHEET: ${{ secrets.VITE_SPREADSHEET }}
+          VITE_BACKEND_URL: ${{ secrets.VITE_BACKEND_URL }}
+          VITE_SLACK_CHANNEL_ID: ${{ secrets.VITE_SLACK_CHANNEL_ID }}
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact

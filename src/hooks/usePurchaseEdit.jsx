@@ -3,7 +3,7 @@ import { calculateTotalCost, getRequestTier } from '../utils/purchaseHelpers';
 import { getRefreshedAccessToken } from '../utils/googleAuth';
 import { updatePurchaseByRequestId, deletePurchaseByRequestId } from '../utils/googleSheets';
 /**
- * Hook for managing purchase editing state and operations
+ * Hook for managing purchase editing state and operation
  */
 export const usePurchaseEdit = (purchase, onUpdate, onClose, showConfirm, showError, userName = '', slackController = null) => {
     const [isEditing, setIsEditing] = useState(false);

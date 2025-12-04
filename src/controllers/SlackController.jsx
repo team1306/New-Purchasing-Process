@@ -163,6 +163,8 @@ export class SlackController {
             await sendSlackMessage(blocks, purchase['Slack Message ID']);
 
             // Also update the parent message
+            purchase['State'] = newState;
+
             await this.updateParentMessage(purchase);
         } catch (error) {
             console.error('Error logging state change to Slack:', error);
